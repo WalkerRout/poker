@@ -1,0 +1,44 @@
+services:
+  server-production:
+    container_name: server
+    build:
+      context: server
+      dockerfile: Dockerfile
+      target: production
+      args:
+        RUST_TARGET: ${RUST_TARGET:?need to know cpu architecture for server musl build}
+    restart: unless-stopped
+    networks:
+      - internal
+    # sorta redundant, but this absolutely guarantees that we will never spin up
+    # both development and production containers at the same time...
+    profiles:
+      - production
+
+  reverse-proxy-production:
+    container_name: reverse-proxy
+    image: nginx:1.29.1-alpine-slim
+    depends_on:
+      - server-production
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - internal
+      - external
+    profiles:
+      - production
+
+  cloudflared-production:
+    container_name: cloudflared
+    image: cloudflare/cloudflared:latest
+    depends_on:
+      - reverse-proxy-production
+    restart: unless-stopped
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?need tunnel token to talk to cloudflared}
+    networks:
+      - external
+    command: tunnel --no-autoupdate run
+    profiles:
+      - production
