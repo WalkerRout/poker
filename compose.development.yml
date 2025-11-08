@@ -1,11 +1,3 @@
-x-dev-environment: &dev-env
-  RUST_LOG: "1"
-  RUST_BACKTRACE: "1"
-
-x-dev-volumes: &dev-volumes
-  - ./server/backend:/app/backend
-  - ./server/service:/app/service
-
 services:
   server-development:
     container_name: server
@@ -17,8 +9,11 @@ services:
         RUST_TARGET: ${RUST_TARGET:?need to know cpu architecture for server musl build}
     restart: unless-stopped
     environment:
-      <<: *dev-env
-    volumes: *dev-volumes
+      RUST_LOG: "1"
+      RUST_BACKTRACE: "1"
+    volumes:
+      - ./server/backend:/app/backend
+      - ./server/service:/app/service
     networks:
       - internal
     profiles:

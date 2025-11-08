@@ -63,7 +63,7 @@ where
   S: Service,
 {
   /// Construct a `Server` given socket address parts and a `Service`
-  #[instrument(name = "PI-SERVICE", skip(addr, service))]
+  #[instrument(name = "SERVICE", skip(addr, service))]
   pub async fn new(addr: impl Into<SocketAddr>, service: S) -> Result<Self, ServerError> {
     let addr = addr.into();
     let listener = TcpListener::bind(addr)
@@ -79,7 +79,7 @@ where
   ///
   /// Accesses `self.service`s `Router` and opens it on a `tokio::net::TcpListener`
   /// that listens on the initially provided socket address
-  #[instrument(name = "PI-SERVICE", skip(self))]
+  #[instrument(name = "SERVICE", skip(self))]
   pub async fn run(self) -> Result<(), ServerError> {
     let app = self.service.router();
     info!("running server...");

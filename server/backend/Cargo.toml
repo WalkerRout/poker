@@ -1,15 +1,23 @@
 [package]
+# the backend is the main executable of the server...
 name = "server"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# networking
 axum = "0.8.4"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.145"
+# async
+tokio = { version = "1.47.1", features = ["rt", "macros"] }
+# logging
 tracing-subscriber = "0.3.20"
 tracing = "0.1.41"
 log-panics = "2.1.0"
+# errors
 anyhow = "1.0.99"
-serde = { version = "1.0.219", features = ["derive"] }
-tokio = { version = "1.47.1", features = ["rt", "macros"] }
+thiserror = "2.0.17"
 # homespun
 lib-service = { path = "../service" }
+
