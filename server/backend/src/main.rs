@@ -3,7 +3,7 @@ use std::sync::{self, Arc, Mutex};
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 
@@ -64,11 +64,109 @@ impl Service for CounterService {
     };
 
     Router::new()
+      .route("/", get(serve_ui))
       .route("/hit", get(hit::get).post(hit::post))
       .route("/max", get(max::get).post(max::post))
       .route("/reset", post(reset::post))
       .with_state(state)
   }
+}
+
+// dummy frontend for users to send requests using a gui...
+async fn serve_ui() -> Html<&'static str> {
+  Html(r#"
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Counter API</title>
+  <style>
+    body { font-family: monospace; max-width: 600px; margin: 40px auto; padding: 20px; }
+    .section { margin: 30px 0; padding: 20px; border: 1px solid #ccc; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    input { padding: 8px; margin: 5px; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 4px; }
+    h2 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>Counter API</h1>
+  
+  <div class="section">
+    <h2>GET /hit</h2>
+    <p>View current counter state</p>
+    <button onclick="getHit()">Get Counter</button>
+    <pre id="get-hit-result"></pre>
+  </div>
+
+  <div class="section">
+    <h2>POST /hit</h2>
+    <p>Increment the counter</p>
+    <button onclick="postHit()">Increment</button>
+    <pre id="post-hit-result"></pre>
+  </div>
+
+  <div class="section">
+    <h2>GET /max</h2>
+    <p>View current maximum</p>
+    <button onclick="getMax()">Get Max</button>
+    <pre id="get-max-result"></pre>
+  </div>
+
+  <div class="section">
+    <h2>POST /max</h2>
+    <p>Update maximum value</p>
+    <input type="number" id="new-max" placeholder="Enter new max" value="5">
+    <button onclick="postMax()">Update Max</button>
+    <pre id="post-max-result"></pre>
+  </div>
+
+  <div class="section">
+    <h2>POST /reset</h2>
+    <p>Reset counter to zero</p>
+    <button onclick="postReset()">Reset Counter</button>
+    <pre id="post-reset-result"></pre>
+  </div>
+
+  <script>
+    async function getHit() {
+      const res = await fetch('/hit');
+      const data = await res.json();
+      document.getElementById('get-hit-result').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function postHit() {
+      const res = await fetch('/hit', { method: 'POST' });
+      const data = await res.json();
+      document.getElementById('post-hit-result').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function getMax() {
+      const res = await fetch('/max');
+      const data = await res.json();
+      document.getElementById('get-max-result').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function postMax() {
+      const max = document.getElementById('new-max').value;
+      const res = await fetch('/max', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max: parseInt(max) })
+      });
+      const data = await res.json();
+      document.getElementById('post-max-result').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function postReset() {
+      const res = await fetch('/reset', { method: 'POST' });
+      const data = await res.json();
+      document.getElementById('post-reset-result').textContent = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
+  "#)
 }
 
 // insides need to be Sync
@@ -85,28 +183,28 @@ mod hit {
   use super::*;
 
   #[derive(Serialize)]
-  pub enum Response {
-    Get {
-      count: u64,
-      max: u64,
-      saturated: bool,
-    },
-    Post {
-      count: u64,
-      saturated: bool,
-    },
+  pub struct GetResponse {
+    count: u64,
+    max: u64,
+    saturated: bool,
   }
 
-  pub async fn get(State(state): State<AppState>) -> Result<Json<Response>, Error> {
+  #[derive(Serialize)]
+  pub struct PostResponse {
+    count: u64,
+    saturated: bool,
+  }
+
+  pub async fn get(State(state): State<AppState>) -> Result<Json<GetResponse>, Error> {
     let counter = state.inner.counter.lock()?;
-    Ok(Json(Response::Get {
+    Ok(Json(GetResponse {
       count: counter.count().get(),
       max: counter.max().get(),
       saturated: counter::is_saturated(&counter),
     }))
   }
 
-  pub async fn post(State(state): State<AppState>) -> Result<Json<Response>, Error> {
+  pub async fn post(State(state): State<AppState>) -> Result<Json<PostResponse>, Error> {
     let mut guard = state.inner.counter.lock()?;
     *guard = guard.clone().inc();
 
@@ -115,7 +213,7 @@ mod hit {
       info!("counter is saturated at {0}/{0}", guard.max().get());
     }
 
-    Ok(Json(Response::Post {
+    Ok(Json(PostResponse {
       count: guard.count().get(),
       saturated,
     }))
