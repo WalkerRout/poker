@@ -9,8 +9,7 @@ services:
         RUST_TARGET: ${RUST_TARGET:?need to know cpu architecture for server musl build}
     restart: unless-stopped
     environment:
-      RUST_LOG: "1"
-      RUST_BACKTRACE: "1"
+      - UI_PASSWORD=${UI_PASSWORD} # optional password; ui will not be enabled if missing
     volumes:
       - ./server/backend:/app/backend
       - ./server/service:/app/service

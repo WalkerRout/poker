@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+use std::env;
 use std::net::SocketAddr;
 use std::sync::{self, Arc, Mutex};
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -26,6 +28,12 @@ enum Error {
 
   #[error("mutex lock poisoned")]
   LockFailure,
+
+  #[error("unauthorized access")]
+  UnauthorizedAccess,
+
+  #[error("missing env var configuration - {0}")]
+  MissingEnvVar(#[from] env::VarError),
 }
 
 impl<T> From<sync::PoisonError<T>> for Error {
@@ -73,8 +81,16 @@ impl Service for CounterService {
 }
 
 // dummy frontend for users to send requests using a gui...
-async fn serve_ui() -> Html<&'static str> {
-  Html(
+async fn serve_ui(
+  Query(params): Query<HashMap<String, String>>,
+) -> Result<Html<&'static str>, Error> {
+  // totally insecure, should probably change, but its not crucial
+  let password = env::var("UI_PASSWORD")?;
+  if params.get("password") != Some(&password) {
+    return Err(Error::UnauthorizedAccess);
+  }
+
+  Ok(Html(
     r#"
 <!DOCTYPE html>
 <html>
@@ -168,7 +184,7 @@ async fn serve_ui() -> Html<&'static str> {
 </body>
 </html>
   "#,
-  )
+  ))
 }
 
 // insides need to be Sync
