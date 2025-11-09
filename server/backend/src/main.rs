@@ -74,12 +74,13 @@ impl Service for CounterService {
 
 // dummy frontend for users to send requests using a gui...
 async fn serve_ui() -> Html<&'static str> {
-  Html(r#"
+  Html(
+    r#"
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Counter API</title>
+  <title>Counter</title>
   <style>
     body { font-family: monospace; max-width: 600px; margin: 40px auto; padding: 20px; }
     .section { margin: 30px 0; padding: 20px; border: 1px solid #ccc; }
@@ -90,7 +91,7 @@ async fn serve_ui() -> Html<&'static str> {
   </style>
 </head>
 <body>
-  <h1>Counter API</h1>
+  <h1>Counter</h1>
   
   <div class="section">
     <h2>GET /hit</h2>
@@ -166,7 +167,8 @@ async fn serve_ui() -> Html<&'static str> {
   </script>
 </body>
 </html>
-  "#)
+  "#,
+  )
 }
 
 // insides need to be Sync
@@ -229,13 +231,18 @@ mod max {
   }
 
   #[derive(Serialize)]
-  pub struct Response {
+  pub struct GetResponse {
     max: u64,
   }
 
-  pub async fn get(State(state): State<AppState>) -> Result<Json<Response>, Error> {
+  #[derive(Serialize)]
+  pub struct PostResponse {
+    max: u64,
+  }
+
+  pub async fn get(State(state): State<AppState>) -> Result<Json<GetResponse>, Error> {
     let counter = state.inner.counter.lock()?;
-    Ok(Json(Response {
+    Ok(Json(GetResponse {
       max: counter.max().get(),
     }))
   }
@@ -243,11 +250,11 @@ mod max {
   pub async fn post(
     State(state): State<AppState>,
     Json(req): Json<PostRequest>,
-  ) -> Result<Json<Response>, Error> {
+  ) -> Result<Json<PostResponse>, Error> {
     let mut guard = state.inner.counter.lock()?;
     let new_max = Max::new(req.max)?;
     *guard = counter::update_max(guard.clone(), new_max);
-    Ok(Json(Response {
+    Ok(Json(PostResponse {
       max: guard.max().get(),
     }))
   }
@@ -257,15 +264,15 @@ mod reset {
   use super::*;
 
   #[derive(Serialize)]
-  pub struct Response {
+  pub struct PostResponse {
     count: u64,
     max: u64,
   }
 
-  pub async fn post(State(state): State<AppState>) -> Result<Json<Response>, Error> {
+  pub async fn post(State(state): State<AppState>) -> Result<Json<PostResponse>, Error> {
     let mut guard = state.inner.counter.lock()?;
     *guard = counter::reset(guard.clone());
-    Ok(Json(Response {
+    Ok(Json(PostResponse {
       count: guard.count().get(),
       max: guard.max().get(),
     }))
@@ -290,7 +297,7 @@ async fn main() -> Result<(), anyhow::Error> {
   let server = Server::new(addr, service).await?;
 
   info!("spinning up server...");
-  server.run().await?;
+  let () = server.run().await?;
   info!("spinning down server...");
 
   Ok(())
