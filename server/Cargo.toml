@@ -1,0 +1,12 @@
+[workspace]
+resolver = "3"
+members = [
+  "backend",
+  "service",
+]
+
+[profile.release]
+opt-level = "s"
+strip = "symbols"
+panic = "abort"
+lto = "fat"

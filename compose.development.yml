@@ -1,0 +1,36 @@
+services:
+  server-development:
+    container_name: server
+    build:
+      context: server
+      dockerfile: Dockerfile
+      target: development
+      args:
+        RUST_TARGET: ${RUST_TARGET:?need to know cpu architecture for server musl build}
+    restart: unless-stopped
+    environment:
+      RUST_LOG: "1"
+      RUST_BACKTRACE: "1"
+    volumes:
+      - ./server/backend:/app/backend
+      - ./server/service:/app/service
+    networks:
+      - internal
+    profiles:
+      - development
+
+  reverse-proxy-development:
+    container_name: reverse-proxy
+    image: nginx:1.29.1-alpine-slim
+    depends_on:
+      - server-development
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - internal
+      - external
+    ports:
+      - "80:80"
+    profiles:
+      - development
