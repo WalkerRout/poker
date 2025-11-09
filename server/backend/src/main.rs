@@ -32,8 +32,11 @@ enum Error {
   #[error("unauthorized access")]
   UnauthorizedAccess,
 
-  #[error("missing env var configuration - {0}")]
-  MissingEnvVar(#[from] env::VarError),
+  #[error("failed to parse env var - {0}")]
+  EnvVarFailure(#[from] env::VarError),
+
+  #[error("ui is currently disabled")]
+  UiDisabled,
 }
 
 impl<T> From<sync::PoisonError<T>> for Error {
@@ -86,6 +89,13 @@ async fn serve_ui(
 ) -> Result<Html<&'static str>, Error> {
   // totally insecure, should probably change, but its not crucial
   let password = env::var("UI_PASSWORD")?;
+  
+  // bit of a weird case but when UI_PASSWORD isnt defined, docker compose
+  // defines it anyway, just empty... so we check that case here...
+  if password == "" {
+    return Err(Error::UiDisabled);
+  }
+
   if params.get("password") != Some(&password) {
     return Err(Error::UnauthorizedAccess);
   }
@@ -96,90 +106,115 @@ async fn serve_ui(
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Counter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mighty Counter</title>
   <style>
-    body { font-family: monospace; max-width: 600px; margin: 40px auto; padding: 20px; }
-    .section { margin: 30px 0; padding: 20px; border: 1px solid #ccc; }
-    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-    input { padding: 8px; margin: 5px; }
-    pre { background: #f4f4f4; padding: 10px; border-radius: 4px; }
-    h2 { margin-top: 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f5f5f7;
+      color: #1d1d1f;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      max-width: 600px;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      color: #1d1d1f;
+    }
+    .subtitle {
+      font-size: 1.1rem;
+      color: #86868b;
+      margin-bottom: 3rem;
+      font-weight: 400;
+    }
+    #queue-button {
+      font-size: 6rem;
+      font-weight: 700;
+      padding: 80px 100px;
+      background: white;
+      border: 2px solid #e5e5e7;
+      border-radius: 16px;
+      color: #1d1d1f;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: 'SF Mono', Monaco, monospace;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      min-width: 420px;
+      letter-spacing: -3px;
+    }
+    #queue-button:hover:not(:disabled) {
+      background: #fafafa;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
+    #queue-button:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    #queue-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+      background: #fafafa;
+    }
   </style>
 </head>
 <body>
-  <h1>Counter</h1>
-  
-  <div class="section">
-    <h2>GET /hit</h2>
-    <p>View current counter state</p>
-    <button onclick="getHit()">Get Counter</button>
-    <pre id="get-hit-result"></pre>
-  </div>
-
-  <div class="section">
-    <h2>POST /hit</h2>
-    <p>Increment the counter</p>
-    <button onclick="postHit()">Increment</button>
-    <pre id="post-hit-result"></pre>
-  </div>
-
-  <div class="section">
-    <h2>GET /max</h2>
-    <p>View current maximum</p>
-    <button onclick="getMax()">Get Max</button>
-    <pre id="get-max-result"></pre>
-  </div>
-
-  <div class="section">
-    <h2>POST /max</h2>
-    <p>Update maximum value</p>
-    <input type="number" id="new-max" placeholder="Enter new max" value="5">
-    <button onclick="postMax()">Update Max</button>
-    <pre id="post-max-result"></pre>
-  </div>
-
-  <div class="section">
-    <h2>POST /reset</h2>
-    <p>Reset counter to zero</p>
-    <button onclick="postReset()">Reset Counter</button>
-    <pre id="post-reset-result"></pre>
+  <div class="container">
+    <h1>Mighty Count</h1>
+    <p class="subtitle">click for pod!</p>
+    <button id="queue-button" onclick="joinQueue()">
+      <span id="count-display">--/--</span>
+    </button>
   </div>
 
   <script>
-    async function getHit() {
-      const res = await fetch('/hit');
-      const data = await res.json();
-      document.getElementById('get-hit-result').textContent = JSON.stringify(data, null, 2);
+    let hasClicked = false;
+
+    async function loadCount() {
+      try {
+        const res = await fetch('/hit');
+        const data = await res.json();
+        document.getElementById('count-display').textContent = 
+          `${data.count}/${data.max}`;
+        
+        if (data.saturated) {
+          document.getElementById('queue-button').disabled = true;
+        }
+      } catch (err) {
+        console.error('Failed to load:', err);
+      }
     }
 
-    async function postHit() {
-      const res = await fetch('/hit', { method: 'POST' });
-      const data = await res.json();
-      document.getElementById('post-hit-result').textContent = JSON.stringify(data, null, 2);
+    async function joinQueue() {
+      if (hasClicked) return;
+      
+      hasClicked = true;
+      const button = document.getElementById('queue-button');
+      button.disabled = true;
+
+      try {
+        const res = await fetch('/hit', { method: 'POST' });
+        const data = await res.json();
+        
+        document.getElementById('count-display').textContent = 
+          `${data.count}/${data.max || '?'}`;
+      } catch (err) {
+        hasClicked = false;
+        button.disabled = false;
+      }
     }
 
-    async function getMax() {
-      const res = await fetch('/max');
-      const data = await res.json();
-      document.getElementById('get-max-result').textContent = JSON.stringify(data, null, 2);
-    }
-
-    async function postMax() {
-      const max = document.getElementById('new-max').value;
-      const res = await fetch('/max', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ max: parseInt(max) })
-      });
-      const data = await res.json();
-      document.getElementById('post-max-result').textContent = JSON.stringify(data, null, 2);
-    }
-
-    async function postReset() {
-      const res = await fetch('/reset', { method: 'POST' });
-      const data = await res.json();
-      document.getElementById('post-reset-result').textContent = JSON.stringify(data, null, 2);
-    }
+    loadCount();
   </script>
 </body>
 </html>
