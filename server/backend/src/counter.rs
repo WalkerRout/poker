@@ -73,12 +73,10 @@ pub fn is_saturated(counter: &Counter) -> bool {
   counter.count().get() >= counter.max().get()
 }
 
-// could make this more efficient by moving it into the api, but i think this
-// consumption looks pretty...
 pub fn update_max(counter: Counter, new_max: Max) -> Counter {
-  let mut new_counter = Counter::new(new_max);
-  for _ in 0..counter.count().get() {
-    new_counter = new_counter.inc();
+  let clamped_count = counter.count().get().min(new_max.get());
+  Counter {
+    count: Count::new(clamped_count),
+    max: new_max,
   }
-  new_counter
 }
