@@ -203,11 +203,18 @@ async fn serve_ui(
       button.disabled = true;
 
       try {
-        const res = await fetch('/hit', { method: 'POST' });
+        await fetch('/hit', { method: 'POST' });
+        
+        // Get the full state
+        const res = await fetch('/hit');
         const data = await res.json();
         
         document.getElementById('count-display').textContent = 
-          `${data.count}/${data.max || '?'}`;
+          `${data.count}/${data.max}`;
+          
+        if (data.saturated) {
+          button.disabled = true;
+        }
       } catch (err) {
         hasClicked = false;
         button.disabled = false;
