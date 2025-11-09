@@ -26,8 +26,6 @@ services:
     networks:
       - internal
       - external
-    ports:
-      - 8080:80
     profiles:
       - production
 
