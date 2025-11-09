@@ -17,4 +17,8 @@ jobs:
         RUST_TARGET: ${{ secrets.RUST_TARGET }}
         TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
       run: |
-        podman compose -f compose.yml -f compose.production.yml --profile production up -d
+        podman compose -f compose.yml -f compose.production.yml --profile production down
+        echo "removed old containers, waiting..."
+        sleep 5
+        echo "rebuilding..."
+        podman compose -f compose.yml -f compose.production.yml --profile production up --build -d
