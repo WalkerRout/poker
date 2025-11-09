@@ -1,6 +1,6 @@
 services:
   server-production:
-    container_name: server
+    container_name: counter-server
     build:
       context: server
       dockerfile: Dockerfile
@@ -16,7 +16,7 @@ services:
       - production
 
   reverse-proxy-production:
-    container_name: reverse-proxy
+    container_name: counter-reverse-proxy
     image: nginx:1.29.1-alpine-slim
     depends_on:
       - server-production
@@ -30,7 +30,7 @@ services:
       - production
 
   cloudflared-production:
-    container_name: cloudflared
+    container_name: counter-cloudflared
     image: cloudflare/cloudflared:latest
     depends_on:
       - reverse-proxy-production
