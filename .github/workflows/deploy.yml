@@ -16,6 +16,7 @@ jobs:
       env:
         RUST_TARGET: ${{ secrets.RUST_TARGET }}
         TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
+        UI_PASSWORD: ${{ secrets.UI_PASSWORD }}
       run: |
         sleep 5
         docker compose -f compose.yml -f compose.production.yml --profile production down || true
