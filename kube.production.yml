@@ -3,76 +3,62 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: counter-cloudflared
-  labels:
-    io.kompose.service: counter-cloudflared
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: counter-cloudflared
+      app: counter-cloudflared
   template:
     metadata:
       labels:
-        io.kompose.service: counter-cloudflared
+        app: counter-cloudflared
     spec:
       containers:
         - name: counter-cloudflared
           image: counter-cloudflared-production:latest
           imagePullPolicy: Never
-          args:
-            - tunnel
-            - --no-autoupdate
-            - run
+          args: [tunnel, --no-autoupdate, run]
           env:
             - name: TUNNEL_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: counter-secrets
                   key: TUNNEL_TOKEN
-                  optional: false
-      restartPolicy: Always
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: counter-reverse-proxy
-  labels:
-    io.kompose.service: counter-reverse-proxy
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: counter-reverse-proxy
-  strategy:
-    type: Recreate
+      app: counter-reverse-proxy
   template:
     metadata:
       labels:
-        io.kompose.service: counter-reverse-proxy
+        app: counter-reverse-proxy
     spec:
       containers:
         - name: counter-reverse-proxy
           image: counter-reverse-proxy-production:latest
           imagePullPolicy: Never
-      restartPolicy: Always
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: counter-server
-  labels:
-    io.kompose.service: counter-server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: counter-server
+      app: counter-server
   template:
     metadata:
       labels:
-        io.kompose.service: counter-server
+        app: counter-server
     spec:
       containers:
         - name: counter-server
@@ -84,8 +70,6 @@ spec:
                 secretKeyRef:
                   name: counter-secrets
                   key: UI_PASSWORD
-                  optional: false
-      restartPolicy: Always
 
 ---
 apiVersion: v1
@@ -93,12 +77,10 @@ kind: Service
 metadata:
   name: counter-server
 spec:
-  type: ClusterIP
   selector:
-    io.kompose.service: counter-server
+    app: counter-server
   ports:
     - port: 3000
-      targetPort: 3000
 
 ---
 apiVersion: v1
@@ -106,9 +88,7 @@ kind: Service
 metadata:
   name: counter-reverse-proxy
 spec:
-  type: ClusterIP
   selector:
-    io.kompose.service: counter-reverse-proxy
+    app: counter-reverse-proxy
   ports:
     - port: 80
-      targetPort: 80
