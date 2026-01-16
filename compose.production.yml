@@ -19,12 +19,12 @@ services:
 
   reverse-proxy-production:
     container_name: counter-reverse-proxy
-    image: nginx:1.29.1-alpine-slim
+    build:
+      context: nginx
+      dockerfile: Dockerfile
     depends_on:
       - server-production
     restart: unless-stopped
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       - internal
       - external
@@ -33,12 +33,14 @@ services:
 
   cloudflared-production:
     container_name: counter-cloudflared
-    image: cloudflare/cloudflared:latest
+    build:
+      context: cloudflared
+      dockerfile: Dockerfile
     depends_on:
       - reverse-proxy-production
     restart: unless-stopped
     environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?need tunnel token to talk to cloudflared}
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-} # optional in parse stage, but this is a mandatory
     networks:
       - external
     command: tunnel --no-autoupdate run

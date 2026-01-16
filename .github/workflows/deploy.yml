@@ -2,23 +2,38 @@ name: deploy to kunlun
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: self-hosted
-    
+
     steps:
-    - name: checkout codebase
-      uses: actions/checkout@v4
-    
-    - name: deploy counter service
-      env:
-        RUST_TARGET: ${{ secrets.RUST_TARGET }}
-        TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
-        UI_PASSWORD: ${{ secrets.UI_PASSWORD }}
-      run: |
-        sleep 5
-        docker compose -f compose.yml -f compose.production.yml --profile production down || true
-        sleep 5
-        docker compose -f compose.yml -f compose.production.yml --profile production up --build -d
+      - name: checkout codebase
+        uses: actions/checkout@v4
+
+      - name: build images
+        env:
+          RUST_TARGET: ${{ secrets.RUST_TARGET }}
+        run: |
+          docker compose -f compose.yml -f compose.production.yml --profile production build
+
+      - name: import images into k3s
+        run: |
+          docker save counter-server-production:latest | sudo k3s ctr images import -
+          docker save counter-reverse-proxy-production:latest | sudo k3s ctr images import -
+          docker save counter-cloudflared-production:latest | sudo k3s ctr images import -
+
+      - name: apply secrets
+        run: |
+          kubectl create secret generic counter-secrets \
+            --from-literal=TUNNEL_TOKEN=${{ secrets.TUNNEL_TOKEN }} \
+            --from-literal=UI_PASSWORD=${{ secrets.UI_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: deploy
+        run: |
+          kubectl apply -f kube/production.yaml
+          kubectl rollout restart deployment/counter-server
+          kubectl rollout restart deployment/counter-reverse-proxy
+          kubectl rollout restart deployment/counter-cloudflared
