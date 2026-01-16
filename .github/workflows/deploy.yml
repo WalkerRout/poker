@@ -33,7 +33,7 @@ jobs:
 
       - name: deploy
         run: |
-          kubectl apply -f kube/production.yaml
+          kubectl apply -f kube.production.yaml
           kubectl rollout restart deployment/counter-server
           kubectl rollout restart deployment/counter-reverse-proxy
           kubectl rollout restart deployment/counter-cloudflared
