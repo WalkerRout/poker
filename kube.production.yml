@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: counter-cloudflared
-          image: counter-cloudflared-production:latest
-          imagePullPolicy: Never
+          image: registry.local:30500/counter-cloudflared:latest
+          imagePullPolicy: Always
           args: [tunnel, --no-autoupdate, run]
           env:
             - name: TUNNEL_TOKEN
@@ -42,8 +42,8 @@ spec:
     spec:
       containers:
         - name: counter-reverse-proxy
-          image: counter-reverse-proxy-production:latest
-          imagePullPolicy: Never
+          image: registry.local:30500/counter-reverse-proxy:latest
+          imagePullPolicy: Always
 
 ---
 apiVersion: apps/v1
@@ -62,8 +62,8 @@ spec:
     spec:
       containers:
         - name: counter-server
-          image: counter-server-production:latest
-          imagePullPolicy: Never
+          image: registry.local:30500/counter-server:latest
+          imagePullPolicy: Always
           env:
             - name: UI_PASSWORD
               valueFrom:
