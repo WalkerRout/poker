@@ -18,11 +18,15 @@ jobs:
         run: |
           docker compose -f compose.yml -f compose.production.yml --profile production build
 
-      - name: import images into k3s
+      - name: tag and push to registry
         run: |
-          docker save counter-server-production:latest | sudo k3s ctr images import -
-          docker save counter-reverse-proxy-production:latest | sudo k3s ctr images import -
-          docker save counter-cloudflared-production:latest | sudo k3s ctr images import -
+          docker tag counter-server-production:latest registry.local:30500/counter-server:latest
+          docker tag counter-reverse-proxy-production:latest registry.local:30500/counter-reverse-proxy:latest
+          docker tag counter-cloudflared-production:latest registry.local:30500/counter-cloudflared:latest
+          
+          docker push registry.local:30500/counter-server:latest
+          docker push registry.local:30500/counter-reverse-proxy:latest
+          docker push registry.local:30500/counter-cloudflared:latest
 
       - name: apply secrets
         run: |
