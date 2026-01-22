@@ -27,6 +27,7 @@ jobs:
         run: |
           kubectl create secret generic counter-secrets \
             --from-literal=UI_PASSWORD=${{ secrets.UI_PASSWORD }} \
+            --from-literal=DATABASE_URL=${{ secrets.DATABASE_URL }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: deploy
