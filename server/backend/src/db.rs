@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-  #[error("database error - {0}")]
+  #[error("sqlx error - {0}")]
   Sqlx(#[from] sqlx::Error),
 
   #[error("migration error - {0}")]
@@ -29,6 +29,14 @@ pub async fn connect(database_url: &str) -> Result<PgPool, Error> {
     .max_connections(5)
     .connect(database_url)
     .await?;
+  Ok(pool)
+}
+
+// non-blocking version of connect; the app depends on db but shouldnt go down because of it...
+pub fn connect_lazy(database_url: &str) -> Result<PgPool, Error> {
+  let pool = PgPoolOptions::new()
+    .max_connections(5)
+    .connect_lazy(database_url)?;
   Ok(pool)
 }
 
@@ -133,9 +141,6 @@ pub struct Game {
   pub id: Uuid,
   pub started_at: OffsetDateTime,
   pub ended_at: OffsetDateTime,
-  pub first_place_pct: i32,
-  pub second_place_pct: i32,
-  pub third_place_pct: i32,
   pub created_at: OffsetDateTime,
   pub updated_at: OffsetDateTime,
 }
@@ -166,9 +171,6 @@ pub struct GameEntryWithPlayer {
 pub struct CreateGameInput {
   pub started_at: OffsetDateTime,
   pub ended_at: OffsetDateTime,
-  pub first_place_pct: Option<i32>,
-  pub second_place_pct: Option<i32>,
-  pub third_place_pct: Option<i32>,
   pub entries: Vec<CreateGameEntryInput>,
 }
 
@@ -185,17 +187,14 @@ pub async fn create_game(pool: &PgPool, input: CreateGameInput) -> Result<Game, 
   let id = Uuid::new_v4();
   let game = sqlx::query_as::<_, Game>(
     r#"
-      INSERT INTO games (id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
+      INSERT INTO games (id, started_at, ended_at)
+      VALUES ($1, $2, $3)
+      RETURNING id, started_at, ended_at, created_at, updated_at
     "#,
   )
   .bind(id)
   .bind(input.started_at)
   .bind(input.ended_at)
-  .bind(input.first_place_pct.unwrap_or(50))
-  .bind(input.second_place_pct.unwrap_or(30))
-  .bind(input.third_place_pct.unwrap_or(20))
   .fetch_one(&mut *tx)
   .await?;
 
@@ -237,7 +236,7 @@ struct GameEntryRow {
 pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEntries, Error> {
   let game = sqlx::query_as::<_, Game>(
     r#"
-      SELECT id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
+      SELECT id, started_at, ended_at, created_at, updated_at
       FROM games WHERE id = $1
     "#,
   )
@@ -287,7 +286,7 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
 pub async fn list_games(pool: &PgPool) -> Result<Vec<Game>, Error> {
   let games = sqlx::query_as::<_, Game>(
     r#"
-      SELECT id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
+      SELECT id, started_at, ended_at, created_at, updated_at
       FROM games ORDER BY started_at DESC
     "#,
   )
@@ -301,9 +300,6 @@ pub async fn list_games(pool: &PgPool) -> Result<Vec<Game>, Error> {
 pub struct UpdateGameInput {
   pub started_at: Option<OffsetDateTime>,
   pub ended_at: Option<OffsetDateTime>,
-  pub first_place_pct: Option<i32>,
-  pub second_place_pct: Option<i32>,
-  pub third_place_pct: Option<i32>,
   pub entries: Option<Vec<CreateGameEntryInput>>,
 }
 
@@ -315,20 +311,14 @@ pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Res
       UPDATE games SET
         started_at = COALESCE($2, started_at),
         ended_at = COALESCE($3, ended_at),
-        first_place_pct = COALESCE($4, first_place_pct),
-        second_place_pct = COALESCE($5, second_place_pct),
-        third_place_pct = COALESCE($6, third_place_pct),
         updated_at = NOW()
       WHERE id = $1
-      RETURNING id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
+      RETURNING id, started_at, ended_at, created_at, updated_at
     "#,
   )
   .bind(id)
   .bind(input.started_at)
   .bind(input.ended_at)
-  .bind(input.first_place_pct)
-  .bind(input.second_place_pct)
-  .bind(input.third_place_pct)
   .fetch_optional(&mut *tx)
   .await?
   .ok_or(Error::NotFound)?;

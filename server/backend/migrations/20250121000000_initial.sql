@@ -1,4 +1,4 @@
--- players relation
+-- players
 CREATE TABLE IF NOT EXISTS players (
     id UUID PRIMARY KEY,
     first_name TEXT NOT NULL,
@@ -6,14 +6,11 @@ CREATE TABLE IF NOT EXISTS players (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- games relation
+-- games
 CREATE TABLE IF NOT EXISTS games (
     id UUID PRIMARY KEY,
     started_at TIMESTAMPTZ NOT NULL,
     ended_at TIMESTAMPTZ NOT NULL,
-    first_place_pct INTEGER NOT NULL DEFAULT 50,
-    second_place_pct INTEGER NOT NULL DEFAULT 30,
-    third_place_pct INTEGER NOT NULL DEFAULT 20,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

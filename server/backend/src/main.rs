@@ -73,13 +73,15 @@ impl PokerService {
   async fn new() -> Result<Self, Error> {
     let database_url = std::env::var("DATABASE_URL")?;
 
-    info!("connecting to database...");
-    let pool = db::connect(&database_url).await?;
-    info!("connected to database successfully");
+    info!("creating database pool (lazy connection)...");
+    let pool = db::connect_lazy(&database_url)?;
 
-    info!("running migrations...");
-    let () = db::migrate(&pool).await?;
-    info!("migrations completed successfully");
+    // try to run migrations, but dont crash if db is unavailable
+    info!("attempting migrations...");
+    match db::migrate(&pool).await {
+      Ok(()) => info!("migrations completed successfully"),
+      Err(e) => tracing::warn!("migrations skipped (db may be unavailable): {}", e),
+    }
 
     Ok(Self { pool })
   }
@@ -278,37 +280,108 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Poker Tracker</title>
+  <title>Poker Night</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
-    h1, h2 { margin-bottom: 20px; }
-    .container { max-width: 900px; margin: 0 auto; }
-    .card { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-    button { background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      background: #1a1a2e; 
+      color: #eee; 
+      padding: 16px;
+      overflow-x: hidden;
+    }
+    .container { max-width: 600px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 16px; }
+    h2 { font-size: 1.1rem; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .card { background: #16213e; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+    
+    button { 
+      background: #e94560; 
+      color: white; 
+      border: none; 
+      padding: 8px 16px; 
+      border-radius: 6px; 
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
     button:hover { background: #ff6b6b; }
     button.secondary { background: #0f3460; }
     button.secondary:hover { background: #1a4a7a; }
-    input, select { padding: 10px; border-radius: 4px; border: 1px solid #333; background: #0f0f23; color: #eee; margin: 5px; width: 200px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
-    th { background: #0f3460; }
+    button.small { padding: 4px 10px; font-size: 0.8rem; }
+    button.remove { background: #666; padding: 4px 8px; }
+    
+    input, select { 
+      padding: 8px 10px; 
+      border-radius: 6px; 
+      border: 1px solid #333; 
+      background: #0f0f23; 
+      color: #eee; 
+      font-size: 0.9rem;
+      width: 100%;
+    }
+    input:focus, select:focus { outline: 1px solid #e94560; }
+    
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #333; }
+    th { background: #0f3460; font-weight: 500; }
     .positive { color: #4ade80; }
     .negative { color: #f87171; }
-    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
-    .modal.active { display: flex; }
-    .modal-content { background: #16213e; padding: 30px; border-radius: 8px; max-width: 500px; width: 90%; }
-    .entry-row { display: flex; gap: 10px; margin: 10px 0; align-items: center; }
-    .entry-row input, .entry-row select { flex: 1; }
-    #entries-container { max-height: 300px; overflow-y: auto; }
-    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-    .tab { padding: 10px 20px; background: #0f3460; border-radius: 4px; cursor: pointer; }
+    .muted { color: #888; }
+    
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab { 
+      padding: 8px 16px; 
+      background: #0f3460; 
+      border-radius: 6px; 
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
     .tab.active { background: #e94560; }
+    
+    .modal { 
+      display: none; 
+      position: fixed; 
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85); 
+      justify-content: center; 
+      align-items: flex-start;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .modal.active { display: flex; }
+    .modal-content { 
+      background: #16213e; 
+      padding: 20px; 
+      border-radius: 8px; 
+      width: 100%;
+      max-width: 400px;
+      margin: auto;
+    }
+    .modal h2 { margin-bottom: 16px; }
+    
+    .form-row { margin-bottom: 12px; }
+    .form-row label { display: block; font-size: 0.8rem; color: #aaa; margin-bottom: 4px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    
+    .entry-row { 
+      display: grid; 
+      grid-template-columns: 1fr 70px 70px 36px; 
+      gap: 6px; 
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    .entry-row input, .entry-row select { width: 100%; }
+    
+    .actions { display: flex; gap: 8px; margin-top: 16px; }
+    .actions button { flex: 1; }
+    
+    #entries-container { margin: 12px 0; }
+    .empty-msg { color: #666; font-size: 0.85rem; padding: 8px 0; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Poker Tracker</h1>
+    <h1>🃏 Poker Night</h1>
     
     <div class="tabs">
       <div class="tab active" onclick="showTab('stats')">Stats</div>
@@ -319,23 +392,23 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
     <div id="stats-tab" class="card">
       <h2>Leaderboard</h2>
       <table>
-        <thead><tr><th>Player</th><th>Games</th><th>Buy-ins</th><th>Winnings</th><th>Net</th></tr></thead>
+        <thead><tr><th>Player</th><th>Games</th><th>Net</th></tr></thead>
         <tbody id="stats-body"></tbody>
       </table>
     </div>
 
     <div id="games-tab" class="card" style="display:none">
-      <h2>Games <button onclick="openGameModal()">+ New Game</button></h2>
+      <h2>Games <button class="small" onclick="openGameModal()">+ New</button></h2>
       <table>
-        <thead><tr><th>Date</th><th>Duration</th><th>Players</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Date</th><th>Pot</th><th></th></tr></thead>
         <tbody id="games-body"></tbody>
       </table>
     </div>
 
     <div id="players-tab" class="card" style="display:none">
-      <h2>Players <button onclick="openPlayerModal()">+ Add Player</button></h2>
+      <h2>Players <button class="small" onclick="openPlayerModal()">+ Add</button></h2>
       <table>
-        <thead><tr><th>Name</th><th>Created</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th></th></tr></thead>
         <tbody id="players-body"></tbody>
       </table>
     </div>
@@ -345,12 +418,18 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
   <div id="player-modal" class="modal">
     <div class="modal-content">
       <h2>Add Player</h2>
-      <input type="text" id="player-first" placeholder="First name">
-      <input type="text" id="player-last" placeholder="Last name">
-      <div id="player-warning" style="color: #f59e0b; margin: 10px 0; display: none;"></div>
-      <div style="margin-top: 20px;">
-        <button onclick="createPlayer()">Create</button>
+      <div class="form-row">
+        <label>First Name</label>
+        <input type="text" id="player-first" placeholder="John">
+      </div>
+      <div class="form-row">
+        <label>Last Name</label>
+        <input type="text" id="player-last" placeholder="Doe">
+      </div>
+      <div id="player-warning" style="color: #f59e0b; font-size: 0.85rem; margin: 8px 0; display: none;"></div>
+      <div class="actions">
         <button class="secondary" onclick="closeModal('player-modal')">Cancel</button>
+        <button onclick="createPlayer()">Add Player</button>
       </div>
     </div>
   </div>
@@ -359,25 +438,35 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
   <div id="game-modal" class="modal">
     <div class="modal-content">
       <h2 id="game-modal-title">New Game</h2>
-      <input type="datetime-local" id="game-start" placeholder="Start time">
-      <input type="datetime-local" id="game-end" placeholder="End time">
-      <h3 style="margin: 20px 0 10px;">Players</h3>
-      <div id="entries-container"></div>
-      <button class="secondary" onclick="addEntryRow()">+ Add Player</button>
-      <div style="margin-top: 20px;">
-        <button onclick="saveGame()">Save</button>
-        <button class="secondary" onclick="closeModal('game-modal')">Cancel</button>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Start Time</label>
+          <input type="time" id="game-start-time">
+        </div>
+        <div class="form-row">
+          <label>End Time</label>
+          <input type="time" id="game-end-time">
+        </div>
       </div>
-    </div>
-  </div>
-
-  <!-- Confirm Modal -->
-  <div id="confirm-modal" class="modal">
-    <div class="modal-content">
-      <p id="confirm-text"></p>
-      <div style="margin-top: 20px;">
-        <button id="confirm-yes">Yes</button>
-        <button class="secondary" onclick="closeModal('confirm-modal')">No</button>
+      <div class="form-row">
+        <label>Date (defaults to today)</label>
+        <input type="date" id="game-date">
+      </div>
+      
+      <div style="margin-top: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label style="margin: 0;">Players</label>
+          <button class="small secondary" onclick="addEntryRow()">+ Add</button>
+        </div>
+        <div id="entries-container">
+          <div class="empty-msg">Click "+ Add" to add players</div>
+        </div>
+      </div>
+      
+      <div id="game-error" style="color: #f87171; font-size: 0.85rem; margin: 8px 0; display: none;"></div>
+      <div class="actions">
+        <button class="secondary" onclick="closeModal('game-modal')">Cancel</button>
+        <button onclick="saveGame()">Save Game</button>
       </div>
     </div>
   </div>
@@ -387,22 +476,33 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
     let editingGameId = null;
 
     async function api(path, opts = {}) {
-      const res = await fetch('/api' + path, {
-        headers: { 'Content-Type': 'application/json' },
-        ...opts,
-        body: opts.body ? JSON.stringify(opts.body) : undefined
-      });
-      if (res.status === 204) return null;
-      return res.json();
+      try {
+        const res = await fetch('/api' + path, {
+          headers: { 'Content-Type': 'application/json' },
+          ...opts,
+          body: opts.body ? JSON.stringify(opts.body) : undefined
+        });
+        if (res.status === 204) return null;
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        return res.json();
+      } catch (e) {
+        console.error('API error:', e);
+        throw e;
+      }
     }
 
-    function formatCents(c) {
-      const dollars = (c / 100).toFixed(2);
-      return c >= 0 ? `$${dollars}` : `-$${Math.abs(dollars).toFixed(2)}`;
+    function formatMoney(cents) {
+      const dollars = Math.abs(cents / 100).toFixed(2);
+      if (cents >= 0) return '$' + dollars;
+      return '-$' + dollars;
     }
 
     function formatDate(d) {
-      return new Date(d).toLocaleDateString();
+      const date = new Date(d);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     function showTab(name) {
@@ -413,42 +513,62 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
     }
 
     async function loadStats() {
-      const stats = await api('/stats');
-      document.getElementById('stats-body').innerHTML = stats.map(s => `
-        <tr>
-          <td>${s.player.first_name} ${s.player.last_name}</td>
-          <td>${s.total_games}</td>
-          <td>${formatCents(s.total_buy_in_cents)}</td>
-          <td>${formatCents(s.total_winnings_cents)}</td>
-          <td class="${s.net_cents >= 0 ? 'positive' : 'negative'}">${formatCents(s.net_cents)}</td>
-        </tr>
-      `).join('');
+      try {
+        const stats = await api('/stats');
+        if (!stats || stats.length === 0) {
+          document.getElementById('stats-body').innerHTML = '<tr><td colspan="3" class="muted">No data yet</td></tr>';
+          return;
+        }
+        document.getElementById('stats-body').innerHTML = stats.map(s => `
+          <tr>
+            <td>${s.player.first_name} ${s.player.last_name}</td>
+            <td>${s.total_games}</td>
+            <td class="${s.net_cents >= 0 ? 'positive' : 'negative'}">${formatMoney(s.net_cents)}</td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        document.getElementById('stats-body').innerHTML = '<tr><td colspan="3" class="muted">Failed to load</td></tr>';
+      }
     }
 
     async function loadGames() {
-      const games = await api('/games');
-      document.getElementById('games-body').innerHTML = games.map(g => `
-        <tr>
-          <td>${formatDate(g.started_at)}</td>
-          <td>${Math.round((new Date(g.ended_at) - new Date(g.started_at)) / 60000)} min</td>
-          <td>-</td>
-          <td>
-            <button class="secondary" onclick="editGame('${g.id}')">Edit</button>
-            <button onclick="deleteGame('${g.id}')">Delete</button>
-          </td>
-        </tr>
-      `).join('');
+      try {
+        const games = await api('/games');
+        if (!games || games.length === 0) {
+          document.getElementById('games-body').innerHTML = '<tr><td colspan="3" class="muted">No games yet</td></tr>';
+          return;
+        }
+        document.getElementById('games-body').innerHTML = games.map(g => `
+          <tr>
+            <td>${formatDate(g.started_at)}</td>
+            <td>-</td>
+            <td>
+              <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>
+              <button class="small remove" onclick="deleteGame('${g.id}')">×</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        document.getElementById('games-body').innerHTML = '<tr><td colspan="3" class="muted">Failed to load</td></tr>';
+      }
     }
 
     async function loadPlayers() {
-      players = await api('/players');
-      document.getElementById('players-body').innerHTML = players.map(p => `
-        <tr>
-          <td>${p.first_name} ${p.last_name}</td>
-          <td>${formatDate(p.created_at)}</td>
-          <td><button onclick="deletePlayer('${p.id}')">Delete</button></td>
-        </tr>
-      `).join('');
+      try {
+        players = await api('/players') || [];
+        if (players.length === 0) {
+          document.getElementById('players-body').innerHTML = '<tr><td colspan="2" class="muted">No players yet</td></tr>';
+          return;
+        }
+        document.getElementById('players-body').innerHTML = players.map(p => `
+          <tr>
+            <td>${p.first_name} ${p.last_name}</td>
+            <td><button class="small remove" onclick="deletePlayer('${p.id}')">×</button></td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        document.getElementById('players-body').innerHTML = '<tr><td colspan="2" class="muted">Failed to load</td></tr>';
+      }
     }
 
     function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -462,97 +582,165 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
     }
 
     async function createPlayer(force = false) {
-      const first = document.getElementById('player-first').value;
-      const last = document.getElementById('player-last').value;
-      const res = await fetch('/api/players', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ first_name: first, last_name: last, force })
-      });
-      if (res.status === 409) {
-        document.getElementById('player-warning').textContent = 'Player with this name exists. Click Create again to add anyway.';
+      const first = document.getElementById('player-first').value.trim();
+      const last = document.getElementById('player-last').value.trim();
+      if (!first || !last) {
+        document.getElementById('player-warning').textContent = 'Please enter both names';
         document.getElementById('player-warning').style.display = 'block';
-        document.querySelector('#player-modal button').onclick = () => createPlayer(true);
         return;
       }
-      closeModal('player-modal');
-      loadPlayers();
-      loadStats();
+      try {
+        const res = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ first_name: first, last_name: last, force })
+        });
+        if (res.status === 409) {
+          document.getElementById('player-warning').textContent = 'Player exists. Click again to add anyway.';
+          document.getElementById('player-warning').style.display = 'block';
+          document.querySelector('#player-modal .actions button:last-child').onclick = () => createPlayer(true);
+          return;
+        }
+        closeModal('player-modal');
+        loadPlayers();
+        loadStats();
+      } catch (e) {
+        document.getElementById('player-warning').textContent = 'Failed to add player';
+        document.getElementById('player-warning').style.display = 'block';
+      }
     }
 
     async function deletePlayer(id) {
       if (confirm('Delete this player?')) {
-        await api('/players/' + id, { method: 'DELETE' });
-        loadPlayers();
-        loadStats();
+        try {
+          await api('/players/' + id, { method: 'DELETE' });
+          loadPlayers();
+          loadStats();
+        } catch (e) { alert('Failed to delete'); }
       }
+    }
+
+    function getTodayDate() {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    function getCurrentTime() {
+      const now = new Date();
+      return now.toTimeString().slice(0, 5);
     }
 
     function openGameModal() {
       editingGameId = null;
       document.getElementById('game-modal-title').textContent = 'New Game';
-      document.getElementById('game-start').value = '';
-      document.getElementById('game-end').value = '';
-      document.getElementById('entries-container').innerHTML = '';
-      addEntryRow();
-      addEntryRow();
+      document.getElementById('game-date').value = getTodayDate();
+      document.getElementById('game-start-time').value = '';
+      document.getElementById('game-end-time').value = '';
+      document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
+      document.getElementById('game-error').style.display = 'none';
       openModal('game-modal');
     }
 
     async function editGame(id) {
       editingGameId = id;
-      const game = await api('/games/' + id);
-      document.getElementById('game-modal-title').textContent = 'Edit Game';
-      document.getElementById('game-start').value = game.game.started_at.slice(0, 16);
-      document.getElementById('game-end').value = game.game.ended_at.slice(0, 16);
-      document.getElementById('entries-container').innerHTML = '';
-      game.entries.forEach(e => addEntryRow(e.player.id, e.entry.buy_in_cents / 100, e.entry.winnings_cents / 100));
-      openModal('game-modal');
+      try {
+        const game = await api('/games/' + id);
+        document.getElementById('game-modal-title').textContent = 'Edit Game';
+        
+        const startDate = new Date(game.game.started_at);
+        const endDate = new Date(game.game.ended_at);
+        
+        document.getElementById('game-date').value = startDate.toISOString().split('T')[0];
+        document.getElementById('game-start-time').value = startDate.toTimeString().slice(0, 5);
+        document.getElementById('game-end-time').value = endDate.toTimeString().slice(0, 5);
+        
+        document.getElementById('entries-container').innerHTML = '';
+        game.entries.forEach(e => addEntryRow(e.player.id, e.entry.buy_in_cents / 100, e.entry.winnings_cents / 100));
+        if (game.entries.length === 0) {
+          document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
+        }
+        document.getElementById('game-error').style.display = 'none';
+        openModal('game-modal');
+      } catch (e) { alert('Failed to load game'); }
     }
 
-    function addEntryRow(playerId = '', buyIn = 20, winnings = 0) {
+    function addEntryRow(playerId = '', buyIn = '', winnings = '') {
+      const empty = document.querySelector('#entries-container .empty-msg');
+      if (empty) empty.remove();
+      
       const div = document.createElement('div');
       div.className = 'entry-row';
       div.innerHTML = `
         <select class="entry-player">
-          <option value="">Select player</option>
-          ${players.map(p => `<option value="${p.id}" ${p.id === playerId ? 'selected' : ''}>${p.first_name} ${p.last_name}</option>`).join('')}
+          <option value="">Player</option>
+          ${players.map(p => `<option value="${p.id}" ${p.id === playerId ? 'selected' : ''}>${p.first_name}</option>`).join('')}
         </select>
-        <input type="number" class="entry-buyin" placeholder="Buy-in $" value="${buyIn}">
-        <input type="number" class="entry-winnings" placeholder="Winnings $" value="${winnings}">
-        <button class="secondary" onclick="this.parentElement.remove()">×</button>
+        <input type="number" class="entry-buyin" placeholder="In" value="${buyIn}">
+        <input type="number" class="entry-winnings" placeholder="Out" value="${winnings}">
+        <button class="remove" onclick="removeEntry(this)">×</button>
       `;
       document.getElementById('entries-container').appendChild(div);
     }
 
+    function removeEntry(btn) {
+      btn.parentElement.remove();
+      if (document.querySelectorAll('.entry-row').length === 0) {
+        document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
+      }
+    }
+
     async function saveGame() {
+      const errEl = document.getElementById('game-error');
+      errEl.style.display = 'none';
+      
+      const date = document.getElementById('game-date').value || getTodayDate();
+      const startTime = document.getElementById('game-start-time').value;
+      const endTime = document.getElementById('game-end-time').value;
+      
+      if (!startTime || !endTime) {
+        errEl.textContent = 'Please enter start and end times';
+        errEl.style.display = 'block';
+        return;
+      }
+      
       const entries = Array.from(document.querySelectorAll('.entry-row')).map(row => ({
         player_id: row.querySelector('.entry-player').value,
         buy_in_cents: Math.round(parseFloat(row.querySelector('.entry-buyin').value || 0) * 100),
         winnings_cents: Math.round(parseFloat(row.querySelector('.entry-winnings').value || 0) * 100)
       })).filter(e => e.player_id);
 
-      const body = {
-        started_at: new Date(document.getElementById('game-start').value).toISOString(),
-        ended_at: new Date(document.getElementById('game-end').value).toISOString(),
-        entries
-      };
-
-      if (editingGameId) {
-        await api('/games/' + editingGameId, { method: 'PUT', body });
-      } else {
-        await api('/games', { method: 'POST', body });
+      if (entries.length === 0) {
+        errEl.textContent = 'Please add at least one player';
+        errEl.style.display = 'block';
+        return;
       }
-      closeModal('game-modal');
-      loadGames();
-      loadStats();
+
+      const startedAt = new Date(date + 'T' + startTime + ':00').toISOString();
+      const endedAt = new Date(date + 'T' + endTime + ':00').toISOString();
+
+      const body = { started_at: startedAt, ended_at: endedAt, entries };
+
+      try {
+        if (editingGameId) {
+          await api('/games/' + editingGameId, { method: 'PUT', body });
+        } else {
+          await api('/games', { method: 'POST', body });
+        }
+        closeModal('game-modal');
+        loadGames();
+        loadStats();
+      } catch (e) {
+        errEl.textContent = 'Failed to save game';
+        errEl.style.display = 'block';
+      }
     }
 
     async function deleteGame(id) {
       if (confirm('Delete this game?')) {
-        await api('/games/' + id, { method: 'DELETE' });
-        loadGames();
-        loadStats();
+        try {
+          await api('/games/' + id, { method: 'DELETE' });
+          loadGames();
+          loadStats();
+        } catch (e) { alert('Failed to delete'); }
       }
     }
 
