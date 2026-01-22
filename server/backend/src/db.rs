@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::{FromRow, PgPool};
 
 use time::OffsetDateTime;
 
@@ -34,7 +34,7 @@ pub async fn connect(database_url: &str) -> Result<PgPool, Error> {
 
 // players
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Player {
   pub id: Uuid,
   pub first_name: String,
@@ -57,17 +57,16 @@ pub async fn create_player(
   last_name: &str,
 ) -> Result<Player, Error> {
   let id = Uuid::new_v4();
-  let player = sqlx::query_as!(
-    Player,
+  let player = sqlx::query_as::<_, Player>(
     r#"
       INSERT INTO players (id, first_name, last_name)
       VALUES ($1, $2, $3)
       RETURNING id, first_name, last_name, created_at
     "#,
-    id,
-    first_name,
-    last_name,
   )
+  .bind(id)
+  .bind(first_name)
+  .bind(last_name)
   .fetch_one(pool)
   .await?;
 
@@ -75,20 +74,18 @@ pub async fn create_player(
 }
 
 pub async fn get_player(pool: &PgPool, id: Uuid) -> Result<Player, Error> {
-  sqlx::query_as!(
-    Player,
+  sqlx::query_as::<_, Player>(
     r#"SELECT id, first_name, last_name, created_at FROM players WHERE id = $1"#,
-    id
   )
+  .bind(id)
   .fetch_optional(pool)
   .await?
   .ok_or(Error::NotFound)
 }
 
 pub async fn list_players(pool: &PgPool) -> Result<Vec<Player>, Error> {
-  let players = sqlx::query_as!(
-    Player,
-    r#"SELECT id, first_name, last_name, created_at FROM players ORDER BY first_name, last_name"#
+  let players = sqlx::query_as::<_, Player>(
+    r#"SELECT id, first_name, last_name, created_at FROM players ORDER BY first_name, last_name"#,
   )
   .fetch_all(pool)
   .await?;
@@ -101,16 +98,15 @@ pub async fn find_players_by_name(
   first_name: &str,
   last_name: &str,
 ) -> Result<Vec<Player>, Error> {
-  let players = sqlx::query_as!(
-    Player,
+  let players = sqlx::query_as::<_, Player>(
     r#"
       SELECT id, first_name, last_name, created_at 
       FROM players 
       WHERE LOWER(first_name) = LOWER($1) AND LOWER(last_name) = LOWER($2)
     "#,
-    first_name,
-    last_name,
   )
+  .bind(first_name)
+  .bind(last_name)
   .fetch_all(pool)
   .await?;
 
@@ -118,7 +114,8 @@ pub async fn find_players_by_name(
 }
 
 pub async fn delete_player(pool: &PgPool, id: Uuid) -> Result<(), Error> {
-  let result = sqlx::query!(r#"DELETE FROM players WHERE id = $1"#, id)
+  let result = sqlx::query(r#"DELETE FROM players WHERE id = $1"#)
+    .bind(id)
     .execute(pool)
     .await?;
 
@@ -131,7 +128,7 @@ pub async fn delete_player(pool: &PgPool, id: Uuid) -> Result<(), Error> {
 
 // games
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Game {
   pub id: Uuid,
   pub started_at: OffsetDateTime,
@@ -143,7 +140,7 @@ pub struct Game {
   pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct GameEntry {
   pub id: Uuid,
   pub game_id: Uuid,
@@ -186,36 +183,35 @@ pub async fn create_game(pool: &PgPool, input: CreateGameInput) -> Result<Game, 
   let mut tx = pool.begin().await?;
 
   let id = Uuid::new_v4();
-  let game = sqlx::query_as!(
-    Game,
+  let game = sqlx::query_as::<_, Game>(
     r#"
       INSERT INTO games (id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
     "#,
-    id,
-    input.started_at,
-    input.ended_at,
-    input.first_place_pct.unwrap_or(50),
-    input.second_place_pct.unwrap_or(30),
-    input.third_place_pct.unwrap_or(20),
   )
+  .bind(id)
+  .bind(input.started_at)
+  .bind(input.ended_at)
+  .bind(input.first_place_pct.unwrap_or(50))
+  .bind(input.second_place_pct.unwrap_or(30))
+  .bind(input.third_place_pct.unwrap_or(20))
   .fetch_one(&mut *tx)
   .await?;
 
   for entry in input.entries {
     let entry_id = Uuid::new_v4();
-    sqlx::query!(
+    sqlx::query(
       r#"
         INSERT INTO game_entries (id, game_id, player_id, buy_in_cents, winnings_cents)
         VALUES ($1, $2, $3, $4, $5)
       "#,
-      entry_id,
-      id,
-      entry.player_id,
-      entry.buy_in_cents,
-      entry.winnings_cents,
     )
+    .bind(entry_id)
+    .bind(id)
+    .bind(entry.player_id)
+    .bind(entry.buy_in_cents)
+    .bind(entry.winnings_cents)
     .execute(&mut *tx)
     .await?;
   }
@@ -224,20 +220,33 @@ pub async fn create_game(pool: &PgPool, input: CreateGameInput) -> Result<Game, 
   Ok(game)
 }
 
+#[derive(Debug, FromRow)]
+struct GameEntryRow {
+  entry_id: Uuid,
+  game_id: Uuid,
+  player_id: Uuid,
+  buy_in_cents: i32,
+  winnings_cents: i32,
+  entry_created_at: OffsetDateTime,
+  p_id: Uuid,
+  first_name: String,
+  last_name: String,
+  player_created_at: OffsetDateTime,
+}
+
 pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEntries, Error> {
-  let game = sqlx::query_as!(
-    Game,
+  let game = sqlx::query_as::<_, Game>(
     r#"
       SELECT id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
       FROM games WHERE id = $1
     "#,
-    id
   )
+  .bind(id)
   .fetch_optional(pool)
   .await?
   .ok_or(Error::NotFound)?;
 
-  let rows = sqlx::query!(
+  let rows = sqlx::query_as::<_, GameEntryRow>(
     r#"
       SELECT 
         ge.id as entry_id, ge.game_id, ge.player_id, ge.buy_in_cents, ge.winnings_cents, ge.created_at as entry_created_at,
@@ -247,8 +256,8 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
       WHERE ge.game_id = $1
       ORDER BY ge.winnings_cents DESC
     "#,
-    id
   )
+  .bind(id)
   .fetch_all(pool)
   .await?;
 
@@ -276,12 +285,11 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
 }
 
 pub async fn list_games(pool: &PgPool) -> Result<Vec<Game>, Error> {
-  let games = sqlx::query_as!(
-    Game,
+  let games = sqlx::query_as::<_, Game>(
     r#"
       SELECT id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
       FROM games ORDER BY started_at DESC
-    "#
+    "#,
   )
   .fetch_all(pool)
   .await?;
@@ -302,8 +310,7 @@ pub struct UpdateGameInput {
 pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Result<Game, Error> {
   let mut tx = pool.begin().await?;
 
-  let game = sqlx::query_as!(
-    Game,
+  let game = sqlx::query_as::<_, Game>(
     r#"
       UPDATE games SET
         started_at = COALESCE($2, started_at),
@@ -315,35 +322,36 @@ pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Res
       WHERE id = $1
       RETURNING id, started_at, ended_at, first_place_pct, second_place_pct, third_place_pct, created_at, updated_at
     "#,
-    id,
-    input.started_at,
-    input.ended_at,
-    input.first_place_pct,
-    input.second_place_pct,
-    input.third_place_pct,
   )
+  .bind(id)
+  .bind(input.started_at)
+  .bind(input.ended_at)
+  .bind(input.first_place_pct)
+  .bind(input.second_place_pct)
+  .bind(input.third_place_pct)
   .fetch_optional(&mut *tx)
   .await?
   .ok_or(Error::NotFound)?;
 
   if let Some(entries) = input.entries {
-    sqlx::query!(r#"DELETE FROM game_entries WHERE game_id = $1"#, id)
+    sqlx::query(r#"DELETE FROM game_entries WHERE game_id = $1"#)
+      .bind(id)
       .execute(&mut *tx)
       .await?;
 
     for entry in entries {
       let entry_id = Uuid::new_v4();
-      sqlx::query!(
+      sqlx::query(
         r#"
           INSERT INTO game_entries (id, game_id, player_id, buy_in_cents, winnings_cents)
           VALUES ($1, $2, $3, $4, $5)
         "#,
-        entry_id,
-        id,
-        entry.player_id,
-        entry.buy_in_cents,
-        entry.winnings_cents,
       )
+      .bind(entry_id)
+      .bind(id)
+      .bind(entry.player_id)
+      .bind(entry.buy_in_cents)
+      .bind(entry.winnings_cents)
       .execute(&mut *tx)
       .await?;
     }
@@ -354,7 +362,8 @@ pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Res
 }
 
 pub async fn delete_game(pool: &PgPool, id: Uuid) -> Result<(), Error> {
-  let result = sqlx::query!(r#"DELETE FROM games WHERE id = $1"#, id)
+  let result = sqlx::query(r#"DELETE FROM games WHERE id = $1"#)
+    .bind(id)
     .execute(pool)
     .await?;
 
@@ -367,20 +376,27 @@ pub async fn delete_game(pool: &PgPool, id: Uuid) -> Result<(), Error> {
 
 // stats
 
+#[derive(Debug, FromRow)]
+struct StatsRow {
+  total_games: i64,
+  total_buy_in_cents: i64,
+  total_winnings_cents: i64,
+}
+
 pub async fn get_player_stats(pool: &PgPool, player_id: Uuid) -> Result<PlayerStats, Error> {
   let player = get_player(pool, player_id).await?;
 
-  let stats = sqlx::query!(
+  let stats = sqlx::query_as::<_, StatsRow>(
     r#"
       SELECT 
-        COUNT(DISTINCT game_id) as "total_games!",
-        COALESCE(SUM(buy_in_cents), 0) as "total_buy_in_cents!",
-        COALESCE(SUM(winnings_cents), 0) as "total_winnings_cents!"
+        COUNT(DISTINCT game_id) as total_games,
+        COALESCE(SUM(buy_in_cents), 0) as total_buy_in_cents,
+        COALESCE(SUM(winnings_cents), 0) as total_winnings_cents
       FROM game_entries
       WHERE player_id = $1
     "#,
-    player_id
   )
+  .bind(player_id)
   .fetch_one(pool)
   .await?;
 
@@ -393,19 +409,30 @@ pub async fn get_player_stats(pool: &PgPool, player_id: Uuid) -> Result<PlayerSt
   })
 }
 
+#[derive(Debug, FromRow)]
+struct AllStatsRow {
+  id: Uuid,
+  first_name: String,
+  last_name: String,
+  created_at: OffsetDateTime,
+  total_games: i64,
+  total_buy_in_cents: i64,
+  total_winnings_cents: i64,
+}
+
 pub async fn get_all_player_stats(pool: &PgPool) -> Result<Vec<PlayerStats>, Error> {
-  let rows = sqlx::query!(
+  let rows = sqlx::query_as::<_, AllStatsRow>(
     r#"
       SELECT 
         p.id, p.first_name, p.last_name, p.created_at,
-        COUNT(DISTINCT ge.game_id) as "total_games!",
-        COALESCE(SUM(ge.buy_in_cents), 0) as "total_buy_in_cents!",
-        COALESCE(SUM(ge.winnings_cents), 0) as "total_winnings_cents!"
+        COUNT(DISTINCT ge.game_id) as total_games,
+        COALESCE(SUM(ge.buy_in_cents), 0) as total_buy_in_cents,
+        COALESCE(SUM(ge.winnings_cents), 0) as total_winnings_cents
       FROM players p
       LEFT JOIN game_entries ge ON ge.player_id = p.id
       GROUP BY p.id, p.first_name, p.last_name, p.created_at
       ORDER BY (COALESCE(SUM(ge.winnings_cents), 0) - COALESCE(SUM(ge.buy_in_cents), 0)) DESC
-    "#
+    "#,
   )
   .fetch_all(pool)
   .await?;

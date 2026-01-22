@@ -6,7 +6,7 @@ use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
-use axum::routing::{delete, get, post, put};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 
 use serde::Deserialize;
@@ -49,7 +49,6 @@ impl IntoResponse for Error {
         (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
       }
       Error::PlayerConflict(players) => {
-        // immediate return a different response (frontend handles this case uniquely)
         return (StatusCode::CONFLICT, Json(players.clone())).into_response();
       }
       _ => (StatusCode::BAD_REQUEST, self.to_string()),
@@ -131,7 +130,8 @@ mod players {
     Json(req): Json<CreateRequest>,
   ) -> Result<Response, Error> {
     if req.force != Some(true) {
-      let existing = db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
+      let existing =
+        db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
       if !existing.is_empty() {
         return Err(Error::PlayerConflict(existing));
       }
@@ -175,7 +175,8 @@ mod players {
     State(state): State<Arc<AppState>>,
     Json(req): Json<CheckNameRequest>,
   ) -> Result<Json<Vec<db::Player>>, Error> {
-    let players = db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
+    let players =
+      db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
     Ok(Json(players))
   }
 }
@@ -236,12 +237,9 @@ mod stats {
 async fn serve_ui(
   Query(params): Query<HashMap<String, String>>,
 ) -> Result<Html<&'static str>, Error> {
-  // totally insecure, should probably change, but its not crucial
   let password = env::var("UI_PASSWORD")?;
 
-  // bit of a weird case but when UI_PASSWORD isnt defined, docker compose
-  // defines it anyway, just empty... so we check that case here...
-  if password == "" {
+  if password.is_empty() {
     return Err(Error::UiDisabled);
   }
 
