@@ -10,39 +10,7 @@ services:
     restart: unless-stopped
     environment:
       - UI_PASSWORD=${UI_PASSWORD:-} # optional password; ui will not be enabled if missing
-    networks:
-      - internal
-    # sorta redundant, but this absolutely guarantees that we will never spin up
-    # both development and production containers at the same time...
     profiles:
       - production
 
-  reverse-proxy-production:
-    container_name: counter-reverse-proxy
-    build:
-      context: nginx
-      dockerfile: Dockerfile
-    depends_on:
-      - server-production
-    restart: unless-stopped
-    networks:
-      - internal
-      - external
-    profiles:
-      - production
-
-  cloudflared-production:
-    container_name: counter-cloudflared
-    build:
-      context: cloudflared
-      dockerfile: Dockerfile
-    depends_on:
-      - reverse-proxy-production
-    restart: unless-stopped
-    environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-} # optional in parse stage, but this is a mandatory
-    networks:
-      - external
-    command: tunnel --no-autoupdate run
-    profiles:
-      - production
+# ClusterIP networks are internal to the cluster by default

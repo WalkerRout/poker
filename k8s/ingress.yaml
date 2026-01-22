@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: counter
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: counter.walkerrout.ca
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: counter-server
+                port:
+                  number: 3000

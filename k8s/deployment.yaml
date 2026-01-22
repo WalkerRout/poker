@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: counter-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: counter-server
+  template:
+    metadata:
+      labels:
+        app: counter-server
+    spec:
+      containers:
+        - name: counter-server
+          image: registry.local:30500/counter-server:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: UI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: counter-secrets
+                  key: UI_PASSWORD
