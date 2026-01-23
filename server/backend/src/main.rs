@@ -280,7 +280,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Poker Night</title>
+  <title>Poker</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -390,7 +390,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 </head>
 <body>
   <div class="container">
-    <h1>🃏 Poker Night</h1>
+    <h1>Poker Tracker</h1>
     
     <div class="tabs">
       <div class="tab active" onclick="showTab('stats')">Stats</div>
@@ -481,9 +481,27 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- View Game Modal -->
+  <div id="view-modal" class="modal">
+    <div class="modal-content">
+      <h2 id="view-modal-title">Game Details</h2>
+      <div id="view-game-date" style="color: #aaa; font-size: 0.85rem; margin-bottom: 12px;"></div>
+      <div id="view-balance" class="balance-check" style="margin-bottom: 12px;"></div>
+      <table style="margin-bottom: 12px;">
+        <thead><tr><th>Player</th><th>In</th><th>Out</th><th>Net</th></tr></thead>
+        <tbody id="view-entries"></tbody>
+      </table>
+      <div class="actions">
+        <button class="secondary" onclick="closeModal('view-modal')">Close</button>
+        <button onclick="closeModal('view-modal');editGame(viewingGameId)">Edit</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let players = [];
     let editingGameId = null;
+    let viewingGameId = null;
 
     async function api(path, opts = {}) {
       try {
@@ -548,16 +566,21 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
           document.getElementById('games-body').innerHTML = '<tr><td colspan="3" class="muted">No games yet</td></tr>';
           return;
         }
-        document.getElementById('games-body').innerHTML = games.map(g => `
-          <tr>
-            <td>${formatDate(g.started_at)}</td>
-            <td>${formatMoney(g.pot_cents)}</td>
-            <td>
-              <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>
-              <button class="small remove" onclick="deleteGame('${g.id}')">×</button>
-            </td>
-          </tr>
-        `).join('');
+        document.getElementById('games-body').innerHTML = games.map(g => {
+          const balanced = g.pot_cents === g.payout_cents;
+          const icon = balanced ? '<span class="positive">✓</span>' : '<span class="negative">✗</span>';
+          return `
+            <tr>
+              <td>${icon} ${formatDate(g.started_at)}</td>
+              <td>${formatMoney(g.pot_cents)}</td>
+              <td>
+                <button class="small secondary" onclick="viewGame('${g.id}')">View</button>
+                <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>
+                <button class="small remove" onclick="deleteGame('${g.id}')">×</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
       } catch (e) {
         document.getElementById('games-body').innerHTML = '<tr><td colspan="3" class="muted">Failed to load</td></tr>';
       }
@@ -674,6 +697,59 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         }
         document.getElementById('game-error').style.display = 'none';
         openModal('game-modal');
+      } catch (e) { alert('Failed to load game'); }
+    }
+
+    async function viewGame(id) {
+      viewingGameId = id;
+      try {
+        const game = await api('/games/' + id);
+        const startDate = new Date(game.game.started_at);
+        const endDate = new Date(game.game.ended_at);
+        
+        // Format date and time
+        const dateStr = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const startTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const endTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        document.getElementById('view-game-date').textContent = `${dateStr} • ${startTime} - ${endTime}`;
+        
+        // Calculate totals
+        let totalIn = 0, totalOut = 0;
+        game.entries.forEach(e => {
+          totalIn += e.entry.buy_in_cents;
+          totalOut += e.entry.winnings_cents;
+        });
+        
+        // Balance indicator
+        const balanceEl = document.getElementById('view-balance');
+        if (totalIn === totalOut) {
+          balanceEl.className = 'balance-check valid';
+          balanceEl.textContent = `✓ Balanced — Pot: ${formatMoney(totalIn)}`;
+        } else {
+          balanceEl.className = 'balance-check invalid';
+          const diff = totalIn - totalOut;
+          const msg = diff > 0 ? `${formatMoney(diff)} unpaid` : `${formatMoney(Math.abs(diff))} overpaid`;
+          balanceEl.textContent = `✗ Unbalanced — Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
+        }
+        
+        // Sort entries by winnings (winners first)
+        const sorted = [...game.entries].sort((a, b) => b.entry.winnings_cents - a.entry.winnings_cents);
+        
+        // Build entries table
+        document.getElementById('view-entries').innerHTML = sorted.map(e => {
+          const net = e.entry.winnings_cents - e.entry.buy_in_cents;
+          const netClass = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
+          return `
+            <tr>
+              <td>${e.player.first_name} ${e.player.last_name}</td>
+              <td>${formatMoney(e.entry.buy_in_cents)}</td>
+              <td>${formatMoney(e.entry.winnings_cents)}</td>
+              <td class="${netClass}">${net >= 0 ? '+' : ''}${formatMoney(net)}</td>
+            </tr>
+          `;
+        }).join('');
+        
+        openModal('view-modal');
       } catch (e) { alert('Failed to load game'); }
     }
 

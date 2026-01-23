@@ -283,7 +283,7 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
   Ok(GameWithEntries { game, entries })
 }
 
-// Game with calculated pot from entries
+// game with calculated pot from entries
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct GameWithPot {
   pub id: Uuid,
@@ -292,6 +292,7 @@ pub struct GameWithPot {
   pub created_at: DateTime<Utc>,
   pub updated_at: DateTime<Utc>,
   pub pot_cents: i64,
+  pub payout_cents: i64,
 }
 
 pub async fn list_games(pool: &PgPool) -> Result<Vec<GameWithPot>, Error> {
@@ -299,7 +300,8 @@ pub async fn list_games(pool: &PgPool) -> Result<Vec<GameWithPot>, Error> {
     r#"
       SELECT 
         g.id, g.started_at, g.ended_at, g.created_at, g.updated_at,
-        COALESCE(SUM(ge.buy_in_cents), 0) as pot_cents
+        COALESCE(SUM(ge.buy_in_cents), 0) as pot_cents,
+        COALESCE(SUM(ge.winnings_cents), 0) as payout_cents
       FROM games g
       LEFT JOIN game_entries ge ON ge.game_id = g.id
       GROUP BY g.id, g.started_at, g.ended_at, g.created_at, g.updated_at
