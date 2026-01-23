@@ -283,11 +283,27 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
   Ok(GameWithEntries { game, entries })
 }
 
-pub async fn list_games(pool: &PgPool) -> Result<Vec<Game>, Error> {
-  let games = sqlx::query_as::<_, Game>(
+// Game with calculated pot from entries
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GameWithPot {
+  pub id: Uuid,
+  pub started_at: DateTime<Utc>,
+  pub ended_at: DateTime<Utc>,
+  pub created_at: DateTime<Utc>,
+  pub updated_at: DateTime<Utc>,
+  pub pot_cents: i64,
+}
+
+pub async fn list_games(pool: &PgPool) -> Result<Vec<GameWithPot>, Error> {
+  let games = sqlx::query_as::<_, GameWithPot>(
     r#"
-      SELECT id, started_at, ended_at, created_at, updated_at
-      FROM games ORDER BY started_at DESC
+      SELECT 
+        g.id, g.started_at, g.ended_at, g.created_at, g.updated_at,
+        COALESCE(SUM(ge.buy_in_cents), 0) as pot_cents
+      FROM games g
+      LEFT JOIN game_entries ge ON ge.game_id = g.id
+      GROUP BY g.id, g.started_at, g.ended_at, g.created_at, g.updated_at
+      ORDER BY g.started_at DESC
     "#,
   )
   .fetch_all(pool)

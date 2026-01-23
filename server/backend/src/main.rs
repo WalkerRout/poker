@@ -76,7 +76,7 @@ impl PokerService {
     info!("creating database pool (lazy connection)...");
     let pool = db::connect_lazy(&database_url)?;
 
-    // try to run migrations, but dont crash if db is unavailable
+    // Try to run migrations, but don't crash if DB is unavailable
     info!("attempting migrations...");
     match db::migrate(&pool).await {
       Ok(()) => info!("migrations completed successfully"),
@@ -186,7 +186,7 @@ mod players {
 mod games {
   use super::*;
 
-  pub async fn list(State(state): State<Arc<AppState>>) -> Result<Json<Vec<db::Game>>, Error> {
+  pub async fn list(State(state): State<Arc<AppState>>) -> Result<Json<Vec<db::GameWithPot>>, Error> {
     let games = db::list_games(&state.pool).await?;
     Ok(Json(games))
   }
@@ -541,7 +541,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         document.getElementById('games-body').innerHTML = games.map(g => `
           <tr>
             <td>${formatDate(g.started_at)}</td>
-            <td>-</td>
+            <td>${formatMoney(g.pot_cents)}</td>
             <td>
               <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>
               <button class="small remove" onclick="deleteGame('${g.id}')">×</button>
