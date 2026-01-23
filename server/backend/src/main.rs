@@ -390,7 +390,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 </head>
 <body>
   <div class="container">
-    <h1>Poker Tracker</h1>
+    <h1>Poker Counter</h1>
     
     <div class="tabs">
       <div class="tab active" onclick="showTab('stats')">Stats</div>
@@ -547,13 +547,20 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
           document.getElementById('stats-body').innerHTML = '<tr><td colspan="3" class="muted">No data yet</td></tr>';
           return;
         }
-        document.getElementById('stats-body').innerHTML = stats.map(s => `
-          <tr>
-            <td>${s.player.first_name} ${s.player.last_name}</td>
-            <td>${s.total_games}</td>
-            <td class="${s.net_cents >= 0 ? 'positive' : 'negative'}">${formatMoney(s.net_cents)}</td>
-          </tr>
-        `).join('');
+        // Check for duplicate names in stats
+        document.getElementById('stats-body').innerHTML = stats.map(s => {
+          const dupes = stats.filter(st => st.player.first_name === s.player.first_name && st.player.last_name === s.player.last_name);
+          const name = dupes.length > 1 
+            ? `${s.player.first_name} ${s.player.last_name} (${s.player.id.slice(-6)})`
+            : `${s.player.first_name} ${s.player.last_name}`;
+          return `
+            <tr>
+              <td>${name}</td>
+              <td>${s.total_games}</td>
+              <td class="${s.net_cents >= 0 ? 'positive' : 'negative'}">${formatMoney(s.net_cents)}</td>
+            </tr>
+          `;
+        }).join('');
       } catch (e) {
         document.getElementById('stats-body').innerHTML = '<tr><td colspan="3" class="muted">Failed to load</td></tr>';
       }
@@ -593,12 +600,18 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
           document.getElementById('players-body').innerHTML = '<tr><td colspan="2" class="muted">No players yet</td></tr>';
           return;
         }
-        document.getElementById('players-body').innerHTML = players.map(p => `
-          <tr>
-            <td>${p.first_name} ${p.last_name}</td>
-            <td><button class="small remove" onclick="deletePlayer('${p.id}')">×</button></td>
-          </tr>
-        `).join('');
+        document.getElementById('players-body').innerHTML = players.map(p => {
+          const dupes = players.filter(pl => pl.first_name === p.first_name && pl.last_name === p.last_name);
+          const name = dupes.length > 1 
+            ? `${p.first_name} ${p.last_name} (${p.id.slice(-6)})`
+            : `${p.first_name} ${p.last_name}`;
+          return `
+            <tr>
+              <td>${name}</td>
+              <td><button class="small remove" onclick="deletePlayer('${p.id}')">×</button></td>
+            </tr>
+          `;
+        }).join('');
       } catch (e) {
         document.getElementById('players-body').innerHTML = '<tr><td colspan="2" class="muted">Failed to load</td></tr>';
       }
@@ -664,7 +677,6 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 
     function openGameModal() {
       editingGameId = null;
-      forceUnbalanced = false;
       document.getElementById('game-modal-title').textContent = 'New Game';
       document.getElementById('game-date').value = getTodayDate();
       document.getElementById('game-start-time').value = '';
@@ -677,7 +689,6 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 
     async function editGame(id) {
       editingGameId = id;
-      forceUnbalanced = false;
       try {
         const game = await api('/games/' + id);
         document.getElementById('game-modal-title').textContent = 'Edit Game';
@@ -724,12 +735,12 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         const balanceEl = document.getElementById('view-balance');
         if (totalIn === totalOut) {
           balanceEl.className = 'balance-check valid';
-          balanceEl.textContent = `✓ Balanced — Pot: ${formatMoney(totalIn)}`;
+          balanceEl.textContent = `✓ Balanced - Pot: ${formatMoney(totalIn)}`;
         } else {
           balanceEl.className = 'balance-check invalid';
           const diff = totalIn - totalOut;
           const msg = diff > 0 ? `${formatMoney(diff)} unpaid` : `${formatMoney(Math.abs(diff))} overpaid`;
-          balanceEl.textContent = `✗ Unbalanced — Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
+          balanceEl.textContent = `✗ Unbalanced - Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
         }
         
         // Sort entries by winnings (winners first)
@@ -739,9 +750,14 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         document.getElementById('view-entries').innerHTML = sorted.map(e => {
           const net = e.entry.winnings_cents - e.entry.buy_in_cents;
           const netClass = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
+          // Check for duplicate first names
+          const dupes = players.filter(p => p.first_name === e.player.first_name);
+          const name = dupes.length > 1 
+            ? `${e.player.first_name} ${e.player.last_name} (${e.player.id.slice(-6)})`
+            : `${e.player.first_name} ${e.player.last_name}`;
           return `
             <tr>
-              <td>${e.player.first_name} ${e.player.last_name}</td>
+              <td>${name}</td>
               <td>${formatMoney(e.entry.buy_in_cents)}</td>
               <td>${formatMoney(e.entry.winnings_cents)}</td>
               <td class="${netClass}">${net >= 0 ? '+' : ''}${formatMoney(net)}</td>
@@ -753,6 +769,17 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       } catch (e) { alert('Failed to load game'); }
     }
 
+    function getPlayerDisplayName(player) {
+      // Check if there are other players with the same first name
+      const dupes = players.filter(p => p.first_name === player.first_name);
+      if (dupes.length > 1) {
+        // Show last 6 chars of UUID (the random part at the end)
+        const idSuffix = player.id.slice(-6);
+        return `${player.first_name} ${player.last_name} (${idSuffix})`;
+      }
+      return player.first_name;
+    }
+
     function addEntryRow(playerId = '', buyIn = 20, winnings = 0) {
       const empty = document.querySelector('#entries-container .empty-msg');
       if (empty) empty.remove();
@@ -761,8 +788,8 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       div.className = 'entry-row';
       div.innerHTML = `
         <select class="entry-player" onchange="updateBalance()">
-          <option value="">Player</option>
-          ${players.map(p => `<option value="${p.id}" ${p.id === playerId ? 'selected' : ''}>${p.first_name}</option>`).join('')}
+          <option value="">--SELECT--</option>
+          ${players.map(p => `<option value="${p.id}" ${p.id === playerId ? 'selected' : ''}>${getPlayerDisplayName(p)}</option>`).join('')}
         </select>
         <input type="number" class="entry-buyin" placeholder="In" value="${buyIn}" oninput="updateBalance()">
         <input type="number" class="entry-winnings" placeholder="Out" value="${winnings}" oninput="updateBalance()">
@@ -794,7 +821,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       
       if (Math.abs(diff) < 0.01) {
         balanceEl.className = 'balance-check valid';
-        balanceEl.textContent = `✓ Balanced — Pot: $${totalIn.toFixed(2)}`;
+        balanceEl.textContent = `✓ Balanced - Pot: $${totalIn.toFixed(2)}`;
       } else {
         balanceEl.className = 'balance-check invalid';
         const remaining = diff > 0 ? `$${diff.toFixed(2)} left to pay out` : `$${Math.abs(diff).toFixed(2)} extra paid out`;
@@ -812,8 +839,6 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         updateBalance();
       }
     }
-
-    let forceUnbalanced = false;
 
     async function saveGame() {
       const errEl = document.getElementById('game-error');
@@ -841,15 +866,18 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         return;
       }
 
-      // Validate balance - warn but allow override
+      // Validate balance - warn but allow override via confirm
       const totalIn = entries.reduce((sum, e) => sum + e.buy_in_cents, 0);
       const totalOut = entries.reduce((sum, e) => sum + e.winnings_cents, 0);
-      if (totalIn !== totalOut && !forceUnbalanced) {
-        errEl.innerHTML = `Money doesn't balance (In: $${(totalIn/100).toFixed(2)}, Out: $${(totalOut/100).toFixed(2)})<br><button class="small" style="margin-top:8px" onclick="forceUnbalanced=true;saveGame()">Save anyway</button>`;
-        errEl.style.display = 'block';
-        return;
+      if (totalIn !== totalOut) {
+        const diff = (totalIn - totalOut) / 100;
+        const msg = diff > 0 
+          ? `$${diff.toFixed(2)} left to pay out` 
+          : `$${Math.abs(diff).toFixed(2)} overpaid`;
+        if (!confirm(`Money doesn't balance (${msg}). Save anyway?`)) {
+          return;
+        }
       }
-      forceUnbalanced = false;
 
       const startedAt = new Date(date + 'T' + startTime + ':00').toISOString();
       const endedAt = new Date(date + 'T' + endTime + ':00').toISOString();
