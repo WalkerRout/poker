@@ -16,7 +16,7 @@ use sqlx::PgPool;
 
 use uuid::Uuid;
 
-use tracing::{info, instrument};
+use tracing::{info, warn, instrument};
 use tracing_subscriber::filter::LevelFilter;
 
 mod db;
@@ -76,11 +76,11 @@ impl PokerService {
     info!("creating database pool (lazy connection)...");
     let pool = db::connect_lazy(&database_url)?;
 
-    // Try to run migrations, but don't crash if DB is unavailable
+    // try to run migrations, but don't crash if DB is unavailable
     info!("attempting migrations...");
     match db::migrate(&pool).await {
       Ok(()) => info!("migrations completed successfully"),
-      Err(e) => tracing::warn!("migrations skipped (db may be unavailable): {}", e),
+      Err(e) => warn!("migrations skipped (db may be unavailable): {}", e),
     }
 
     Ok(Self { pool })
@@ -390,7 +390,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 </head>
 <body>
   <div class="container">
-    <h1>Poker Counter</h1>
+    <h1>Poker Tracker</h1>
     
     <div class="tabs">
       <div class="tab active" onclick="showTab('stats')">Stats</div>
@@ -417,7 +417,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
     <div id="players-tab" class="card" style="display:none">
       <h2>Players <button class="small" onclick="openPlayerModal()">+ Add</button></h2>
       <table>
-        <thead><tr><th>Name</th><th></th></tr></thead>
+        <thead><tr><th>Name</th></tr></thead>
         <tbody id="players-body"></tbody>
       </table>
     </div>
@@ -583,7 +583,6 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
               <td>
                 <button class="small secondary" onclick="viewGame('${g.id}')">View</button>
                 <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>
-                <button class="small remove" onclick="deleteGame('${g.id}')">×</button>
               </td>
             </tr>
           `;
@@ -597,7 +596,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       try {
         players = await api('/players') || [];
         if (players.length === 0) {
-          document.getElementById('players-body').innerHTML = '<tr><td colspan="2" class="muted">No players yet</td></tr>';
+          document.getElementById('players-body').innerHTML = '<tr><td class="muted">No players yet</td></tr>';
           return;
         }
         document.getElementById('players-body').innerHTML = players.map(p => {
@@ -608,12 +607,11 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
           return `
             <tr>
               <td>${name}</td>
-              <td><button class="small remove" onclick="deletePlayer('${p.id}')">×</button></td>
             </tr>
           `;
         }).join('');
       } catch (e) {
-        document.getElementById('players-body').innerHTML = '<tr><td colspan="2" class="muted">Failed to load</td></tr>';
+        document.getElementById('players-body').innerHTML = '<tr><td class="muted">Failed to load</td></tr>';
       }
     }
 
@@ -735,12 +733,12 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         const balanceEl = document.getElementById('view-balance');
         if (totalIn === totalOut) {
           balanceEl.className = 'balance-check valid';
-          balanceEl.textContent = `✓ Balanced - Pot: ${formatMoney(totalIn)}`;
+          balanceEl.textContent = `✓ Balanced — Pot: ${formatMoney(totalIn)}`;
         } else {
           balanceEl.className = 'balance-check invalid';
           const diff = totalIn - totalOut;
           const msg = diff > 0 ? `${formatMoney(diff)} unpaid` : `${formatMoney(Math.abs(diff))} overpaid`;
-          balanceEl.textContent = `✗ Unbalanced - Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
+          balanceEl.textContent = `✗ Unbalanced — Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
         }
         
         // Sort entries by winnings (winners first)
@@ -788,7 +786,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       div.className = 'entry-row';
       div.innerHTML = `
         <select class="entry-player" onchange="updateBalance()">
-          <option value="">--SELECT--</option>
+          <option value="">— SELECT —</option>
           ${players.map(p => `<option value="${p.id}" ${p.id === playerId ? 'selected' : ''}>${getPlayerDisplayName(p)}</option>`).join('')}
         </select>
         <input type="number" class="entry-buyin" placeholder="In" value="${buyIn}" oninput="updateBalance()">
@@ -821,7 +819,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       
       if (Math.abs(diff) < 0.01) {
         balanceEl.className = 'balance-check valid';
-        balanceEl.textContent = `✓ Balanced - Pot: $${totalIn.toFixed(2)}`;
+        balanceEl.textContent = `✓ Balanced — Pot: $${totalIn.toFixed(2)}`;
       } else {
         balanceEl.className = 'balance-check invalid';
         const remaining = diff > 0 ? `$${diff.toFixed(2)} left to pay out` : `$${Math.abs(diff).toFixed(2)} extra paid out`;
