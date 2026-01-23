@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
+
 use serde::{Deserialize, Serialize};
 
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{FromRow, PgPool};
-
-use time::OffsetDateTime;
 
 use uuid::Uuid;
 
@@ -47,7 +47,7 @@ pub struct Player {
   pub id: Uuid,
   pub first_name: String,
   pub last_name: String,
-  pub created_at: OffsetDateTime,
+  pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,10 +139,10 @@ pub async fn delete_player(pool: &PgPool, id: Uuid) -> Result<(), Error> {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Game {
   pub id: Uuid,
-  pub started_at: OffsetDateTime,
-  pub ended_at: OffsetDateTime,
-  pub created_at: OffsetDateTime,
-  pub updated_at: OffsetDateTime,
+  pub started_at: DateTime<Utc>,
+  pub ended_at: DateTime<Utc>,
+  pub created_at: DateTime<Utc>,
+  pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -152,7 +152,7 @@ pub struct GameEntry {
   pub player_id: Uuid,
   pub buy_in_cents: i32,
   pub winnings_cents: i32,
-  pub created_at: OffsetDateTime,
+  pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,8 +169,8 @@ pub struct GameEntryWithPlayer {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateGameInput {
-  pub started_at: OffsetDateTime,
-  pub ended_at: OffsetDateTime,
+  pub started_at: DateTime<Utc>,
+  pub ended_at: DateTime<Utc>,
   pub entries: Vec<CreateGameEntryInput>,
 }
 
@@ -226,11 +226,11 @@ struct GameEntryRow {
   player_id: Uuid,
   buy_in_cents: i32,
   winnings_cents: i32,
-  entry_created_at: OffsetDateTime,
+  entry_created_at: DateTime<Utc>,
   p_id: Uuid,
   first_name: String,
   last_name: String,
-  player_created_at: OffsetDateTime,
+  player_created_at: DateTime<Utc>,
 }
 
 pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEntries, Error> {
@@ -298,8 +298,8 @@ pub async fn list_games(pool: &PgPool) -> Result<Vec<Game>, Error> {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateGameInput {
-  pub started_at: Option<OffsetDateTime>,
-  pub ended_at: Option<OffsetDateTime>,
+  pub started_at: Option<DateTime<Utc>>,
+  pub ended_at: Option<DateTime<Utc>>,
   pub entries: Option<Vec<CreateGameEntryInput>>,
 }
 
@@ -404,7 +404,7 @@ struct AllStatsRow {
   id: Uuid,
   first_name: String,
   last_name: String,
-  created_at: OffsetDateTime,
+  created_at: DateTime<Utc>,
   total_games: i64,
   total_buy_in_cents: i64,
   total_winnings_cents: i64,

@@ -19,8 +19,8 @@ log-panics = "2.1.0"
 anyhow = "1.0.99"
 thiserror = "2.0.17"
 # database
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "migrate", "uuid", "time"] }
+chrono = { version = "0.4", features = ["serde"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "migrate", "uuid", "chrono"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
-time = { version = "0.3", features = ["serde"] }
 # homespun
 lib-service = { path = "../service" }
