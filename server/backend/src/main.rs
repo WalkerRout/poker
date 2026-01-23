@@ -365,12 +365,21 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
     
     .entry-row { 
       display: grid; 
-      grid-template-columns: 1fr 70px 70px 36px; 
+      grid-template-columns: 1fr 70px 70px 28px; 
       gap: 6px; 
       margin-bottom: 8px;
       align-items: center;
     }
     .entry-row input, .entry-row select { width: 100%; }
+    
+    .balance-check {
+      font-size: 0.85rem;
+      padding: 8px;
+      border-radius: 6px;
+      margin-top: 8px;
+    }
+    .balance-check.valid { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+    .balance-check.invalid { background: rgba(248, 113, 113, 0.2); color: #f87171; }
     
     .actions { display: flex; gap: 8px; margin-top: 16px; }
     .actions button { flex: 1; }
@@ -461,6 +470,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         <div id="entries-container">
           <div class="empty-msg">Click "+ Add" to add players</div>
         </div>
+        <div id="balance-check" class="balance-check" style="display: none;"></div>
       </div>
       
       <div id="game-error" style="color: #f87171; font-size: 0.85rem; margin: 8px 0; display: none;"></div>
@@ -631,17 +641,20 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 
     function openGameModal() {
       editingGameId = null;
+      forceUnbalanced = false;
       document.getElementById('game-modal-title').textContent = 'New Game';
       document.getElementById('game-date').value = getTodayDate();
       document.getElementById('game-start-time').value = '';
       document.getElementById('game-end-time').value = '';
       document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
       document.getElementById('game-error').style.display = 'none';
+      document.getElementById('balance-check').style.display = 'none';
       openModal('game-modal');
     }
 
     async function editGame(id) {
       editingGameId = id;
+      forceUnbalanced = false;
       try {
         const game = await api('/games/' + id);
         document.getElementById('game-modal-title').textContent = 'Edit Game';
@@ -657,36 +670,74 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         game.entries.forEach(e => addEntryRow(e.player.id, e.entry.buy_in_cents / 100, e.entry.winnings_cents / 100));
         if (game.entries.length === 0) {
           document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
+          document.getElementById('balance-check').style.display = 'none';
         }
         document.getElementById('game-error').style.display = 'none';
         openModal('game-modal');
       } catch (e) { alert('Failed to load game'); }
     }
 
-    function addEntryRow(playerId = '', buyIn = '', winnings = '') {
+    function addEntryRow(playerId = '', buyIn = 20, winnings = 0) {
       const empty = document.querySelector('#entries-container .empty-msg');
       if (empty) empty.remove();
       
       const div = document.createElement('div');
       div.className = 'entry-row';
       div.innerHTML = `
-        <select class="entry-player">
+        <select class="entry-player" onchange="updateBalance()">
           <option value="">Player</option>
           ${players.map(p => `<option value="${p.id}" ${p.id === playerId ? 'selected' : ''}>${p.first_name}</option>`).join('')}
         </select>
-        <input type="number" class="entry-buyin" placeholder="In" value="${buyIn}">
-        <input type="number" class="entry-winnings" placeholder="Out" value="${winnings}">
+        <input type="number" class="entry-buyin" placeholder="In" value="${buyIn}" oninput="updateBalance()">
+        <input type="number" class="entry-winnings" placeholder="Out" value="${winnings}" oninput="updateBalance()">
         <button class="remove" onclick="removeEntry(this)">×</button>
       `;
       document.getElementById('entries-container').appendChild(div);
+      updateBalance();
+    }
+
+    function updateBalance() {
+      const rows = document.querySelectorAll('.entry-row');
+      if (rows.length === 0) {
+        document.getElementById('balance-check').style.display = 'none';
+        return;
+      }
+      
+      let totalIn = 0;
+      let totalOut = 0;
+      
+      rows.forEach(row => {
+        const buyIn = parseFloat(row.querySelector('.entry-buyin').value) || 0;
+        const winnings = parseFloat(row.querySelector('.entry-winnings').value) || 0;
+        totalIn += buyIn;
+        totalOut += winnings;
+      });
+      
+      const balanceEl = document.getElementById('balance-check');
+      const diff = totalIn - totalOut;
+      
+      if (Math.abs(diff) < 0.01) {
+        balanceEl.className = 'balance-check valid';
+        balanceEl.textContent = `✓ Balanced — Pot: $${totalIn.toFixed(2)}`;
+      } else {
+        balanceEl.className = 'balance-check invalid';
+        const remaining = diff > 0 ? `$${diff.toFixed(2)} left to pay out` : `$${Math.abs(diff).toFixed(2)} extra paid out`;
+        balanceEl.textContent = `Pot: $${totalIn.toFixed(2)} | Paid: $${totalOut.toFixed(2)} | ${remaining}`;
+      }
+      balanceEl.style.display = 'block';
     }
 
     function removeEntry(btn) {
       btn.parentElement.remove();
       if (document.querySelectorAll('.entry-row').length === 0) {
         document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
+        document.getElementById('balance-check').style.display = 'none';
+      } else {
+        updateBalance();
       }
     }
+
+    let forceUnbalanced = false;
 
     async function saveGame() {
       const errEl = document.getElementById('game-error');
@@ -704,8 +755,8 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       
       const entries = Array.from(document.querySelectorAll('.entry-row')).map(row => ({
         player_id: row.querySelector('.entry-player').value,
-        buy_in_cents: Math.round(parseFloat(row.querySelector('.entry-buyin').value || 0) * 100),
-        winnings_cents: Math.round(parseFloat(row.querySelector('.entry-winnings').value || 0) * 100)
+        buy_in_cents: Math.round((parseFloat(row.querySelector('.entry-buyin').value) || 0) * 100),
+        winnings_cents: Math.round((parseFloat(row.querySelector('.entry-winnings').value) || 0) * 100)
       })).filter(e => e.player_id);
 
       if (entries.length === 0) {
@@ -713,6 +764,16 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         errEl.style.display = 'block';
         return;
       }
+
+      // Validate balance - warn but allow override
+      const totalIn = entries.reduce((sum, e) => sum + e.buy_in_cents, 0);
+      const totalOut = entries.reduce((sum, e) => sum + e.winnings_cents, 0);
+      if (totalIn !== totalOut && !forceUnbalanced) {
+        errEl.innerHTML = `Money doesn't balance (In: $${(totalIn/100).toFixed(2)}, Out: $${(totalOut/100).toFixed(2)})<br><button class="small" style="margin-top:8px" onclick="forceUnbalanced=true;saveGame()">Save anyway</button>`;
+        errEl.style.display = 'block';
+        return;
+      }
+      forceUnbalanced = false;
 
       const startedAt = new Date(date + 'T' + startTime + ':00').toISOString();
       const endedAt = new Date(date + 'T' + endTime + ':00').toISOString();
