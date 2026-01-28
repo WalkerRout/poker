@@ -21,7 +21,11 @@ jobs:
       - name: tag and push to registry
         run: |
           docker tag counter-server-production:latest registry.local:30500/counter-server:latest
-          docker push registry.local:30500/counter-server:latest
+          for i in 1 2 3; do
+            echo "Push attempt $i..."
+            docker push registry.local:30500/counter-server:latest && break
+            [ $i -lt 3 ] && sleep $((i * 5))
+          done
 
       - name: apply secrets
         run: |
