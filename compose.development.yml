@@ -5,8 +5,6 @@ services:
       context: server
       dockerfile: Dockerfile
       target: development
-      args:
-        RUST_TARGET: ${RUST_TARGET:?need to know cpu architecture for server musl build}
     restart: unless-stopped
     environment:
       - UI_PASSWORD=${UI_PASSWORD} # optional password; ui will not be enabled if missing

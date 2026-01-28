@@ -5,8 +5,6 @@ services:
       context: server
       dockerfile: Dockerfile
       target: production
-      args:
-        RUST_TARGET: ${RUST_TARGET:?need to know cpu architecture for server musl build}
     restart: unless-stopped
     profiles:
       - production
