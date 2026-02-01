@@ -21,11 +21,21 @@ jobs:
       - name: tag and push to registry
         run: |
           docker tag counter-server-production:latest registry.local:30500/counter-server:latest
-          for i in 1 2 3; do
-            echo "Push attempt $i..."
-            docker push registry.local:30500/counter-server:latest && break
-            [ $i -lt 3 ] && sleep $((i * 5))
+          max_attempts=5
+          for i in $(seq 1 $max_attempts); do
+            echo "Push attempt $i of $max_attempts..."
+            if docker push registry.local:30500/counter-server:latest; then
+              echo "Push succeeded"
+              exit 0
+            fi
+            if [ $i -lt $max_attempts ]; then
+              sleep_time=$((2 ** i * 5))
+              echo "Push failed, retrying in ${sleep_time}s..."
+              sleep $sleep_time
+            fi
           done
+          echo "All push attempts failed"
+          exit 1
 
       - name: apply secrets
         run: |
