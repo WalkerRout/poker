@@ -694,7 +694,11 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         const startDate = new Date(game.game.started_at);
         const endDate = new Date(game.game.ended_at);
         
-        document.getElementById('game-date').value = startDate.toISOString().split('T')[0];
+        // Extract local date for the date input
+        const year = startDate.getFullYear();
+        const month = String(startDate.getMonth() + 1).padStart(2, '0');
+        const day = String(startDate.getDate()).padStart(2, '0');
+        document.getElementById('game-date').value = `${year}-${month}-${day}`;
         document.getElementById('game-start-time').value = startDate.toTimeString().slice(0, 5);
         document.getElementById('game-end-time').value = endDate.toTimeString().slice(0, 5);
         
@@ -733,12 +737,12 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         const balanceEl = document.getElementById('view-balance');
         if (totalIn === totalOut) {
           balanceEl.className = 'balance-check valid';
-          balanceEl.textContent = `✓ Balanced — Pot: ${formatMoney(totalIn)}`;
+          balanceEl.textContent = `✓ Balanced - Pot: ${formatMoney(totalIn)}`;
         } else {
           balanceEl.className = 'balance-check invalid';
           const diff = totalIn - totalOut;
           const msg = diff > 0 ? `${formatMoney(diff)} unpaid` : `${formatMoney(Math.abs(diff))} overpaid`;
-          balanceEl.textContent = `✗ Unbalanced — Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
+          balanceEl.textContent = `✗ Unbalanced - Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
         }
         
         // Sort entries by winnings (winners first)
@@ -786,7 +790,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       div.className = 'entry-row';
       div.innerHTML = `
         <select class="entry-player" onchange="updateBalance()">
-          <option value="">— SELECT —</option>
+          <option value="">- SELECT -</option>
           ${players.map(p => `<option value="${p.id}" ${p.id === playerId ? 'selected' : ''}>${getPlayerDisplayName(p)}</option>`).join('')}
         </select>
         <input type="number" class="entry-buyin" placeholder="In" value="${buyIn}" oninput="updateBalance()">
@@ -819,7 +823,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       
       if (Math.abs(diff) < 0.01) {
         balanceEl.className = 'balance-check valid';
-        balanceEl.textContent = `✓ Balanced — Pot: $${totalIn.toFixed(2)}`;
+        balanceEl.textContent = `✓ Balanced - Pot: $${totalIn.toFixed(2)}`;
       } else {
         balanceEl.className = 'balance-check invalid';
         const remaining = diff > 0 ? `$${diff.toFixed(2)} left to pay out` : `$${Math.abs(diff).toFixed(2)} extra paid out`;
