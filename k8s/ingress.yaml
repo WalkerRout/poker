@@ -2,6 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: counter
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: default-counter-auth@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:

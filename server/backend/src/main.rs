@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -30,32 +29,20 @@ enum Error {
 
   #[error("player with this name already exists")]
   PlayerConflict(Vec<db::Player>),
-
-  #[error("failed to read env var - {0}")]
-  EnvVar(#[from] env::VarError),
-
-  #[error("unauthorized access to UI")]
-  UnauthorizedAccess,
-
-  #[error("UI is disabled")]
-  UiDisabled,
 }
 
 impl IntoResponse for Error {
   fn into_response(self) -> Response {
-    let (status, message) = match &self {
+    match &self {
       Error::Database(_) => {
         tracing::error!("internal error - {}", self);
-        (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+        let body = Json(json!({ "error": self.to_string() }));
+        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
       }
       Error::PlayerConflict(players) => {
-        return (StatusCode::CONFLICT, Json(players.clone())).into_response();
+        (StatusCode::CONFLICT, Json(players.clone())).into_response()
       }
-      _ => (StatusCode::BAD_REQUEST, self.to_string()),
-    };
-
-    let body = Json(json!({ "error": message }));
-    (status, body).into_response()
+    }
   }
 }
 
@@ -71,7 +58,7 @@ struct PokerService {
 
 impl PokerService {
   async fn new() -> Result<Self, Error> {
-    let database_url = std::env::var("DATABASE_URL")?;
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     info!("creating database pool (lazy connection)...");
     let pool = db::connect_lazy(&database_url)?;
@@ -236,20 +223,8 @@ mod stats {
   }
 }
 
-async fn serve_ui(
-  Query(params): Query<HashMap<String, String>>,
-) -> Result<Html<&'static str>, Error> {
-  let password = env::var("UI_PASSWORD")?;
-
-  if password.is_empty() {
-    return Err(Error::UiDisabled);
-  }
-
-  if params.get("password") != Some(&password) {
-    return Err(Error::UnauthorizedAccess);
-  }
-
-  Ok(Html(INDEX_HTML))
+async fn serve_ui() -> Html<&'static str> {
+  Html(INDEX_HTML)
 }
 
 #[instrument(name = "POKER")]
