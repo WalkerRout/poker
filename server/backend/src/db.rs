@@ -17,6 +17,9 @@ pub enum Error {
 
   #[error("not found")]
   NotFound,
+
+  #[error("game is settled and cannot be modified")]
+  GameLocked,
 }
 
 pub async fn migrate(pool: &PgPool) -> Result<(), Error> {
@@ -159,6 +162,7 @@ pub struct GameEntry {
 pub struct GameWithEntries {
   pub game: Game,
   pub entries: Vec<GameEntryWithPlayer>,
+  pub settled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,6 +219,12 @@ pub async fn create_game(pool: &PgPool, input: CreateGameInput) -> Result<Game, 
     .await?;
   }
 
+  // create settlement record (unsettled by default)
+  sqlx::query(r#"INSERT INTO game_settlements (game_id, settled) VALUES ($1, FALSE)"#)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
   tx.commit().await?;
   Ok(game)
 }
@@ -245,9 +255,11 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
   .await?
   .ok_or(Error::NotFound)?;
 
+  let settled = is_game_settled(pool, id).await?;
+
   let rows = sqlx::query_as::<_, GameEntryRow>(
     r#"
-      SELECT 
+      SELECT
         ge.id as entry_id, ge.game_id, ge.player_id, ge.buy_in_cents, ge.winnings_cents, ge.created_at as entry_created_at,
         p.id as p_id, p.first_name, p.last_name, p.created_at as player_created_at
       FROM game_entries ge
@@ -280,7 +292,7 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
     })
     .collect();
 
-  Ok(GameWithEntries { game, entries })
+  Ok(GameWithEntries { game, entries, settled })
 }
 
 // game with calculated pot from entries
@@ -293,18 +305,21 @@ pub struct GameWithPot {
   pub updated_at: DateTime<Utc>,
   pub pot_cents: i64,
   pub payout_cents: i64,
+  pub settled: bool,
 }
 
 pub async fn list_games(pool: &PgPool) -> Result<Vec<GameWithPot>, Error> {
   let games = sqlx::query_as::<_, GameWithPot>(
     r#"
-      SELECT 
+      SELECT
         g.id, g.started_at, g.ended_at, g.created_at, g.updated_at,
         COALESCE(SUM(ge.buy_in_cents), 0) as pot_cents,
-        COALESCE(SUM(ge.winnings_cents), 0) as payout_cents
+        COALESCE(SUM(ge.winnings_cents), 0) as payout_cents,
+        COALESCE(gs.settled, FALSE) as settled
       FROM games g
       LEFT JOIN game_entries ge ON ge.game_id = g.id
-      GROUP BY g.id, g.started_at, g.ended_at, g.created_at, g.updated_at
+      LEFT JOIN game_settlements gs ON gs.game_id = g.id
+      GROUP BY g.id, g.started_at, g.ended_at, g.created_at, g.updated_at, gs.settled
       ORDER BY g.started_at DESC
     "#,
   )
@@ -322,6 +337,10 @@ pub struct UpdateGameInput {
 }
 
 pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Result<Game, Error> {
+  if is_game_settled(pool, id).await? {
+    return Err(Error::GameLocked);
+  }
+
   let mut tx = pool.begin().await?;
 
   let game = sqlx::query_as::<_, Game>(
@@ -370,6 +389,10 @@ pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Res
 }
 
 pub async fn delete_game(pool: &PgPool, id: Uuid) -> Result<(), Error> {
+  if is_game_settled(pool, id).await? {
+    return Err(Error::GameLocked);
+  }
+
   let result = sqlx::query(r#"DELETE FROM games WHERE id = $1"#)
     .bind(id)
     .execute(pool)
@@ -378,6 +401,44 @@ pub async fn delete_game(pool: &PgPool, id: Uuid) -> Result<(), Error> {
   if result.rows_affected() == 0 {
     return Err(Error::NotFound);
   }
+
+  Ok(())
+}
+
+// settlements
+
+pub async fn is_game_settled(pool: &PgPool, game_id: Uuid) -> Result<bool, Error> {
+  let result = sqlx::query_scalar::<_, bool>(
+    r#"SELECT COALESCE(settled, FALSE) FROM game_settlements WHERE game_id = $1"#,
+  )
+  .bind(game_id)
+  .fetch_optional(pool)
+  .await?;
+
+  Ok(result.unwrap_or(false))
+}
+
+pub async fn settle_game(pool: &PgPool, game_id: Uuid) -> Result<(), Error> {
+  // verify game exists
+  let exists = sqlx::query_scalar::<_, bool>(r#"SELECT EXISTS(SELECT 1 FROM games WHERE id = $1)"#)
+    .bind(game_id)
+    .fetch_one(pool)
+    .await?;
+
+  if !exists {
+    return Err(Error::NotFound);
+  }
+
+  sqlx::query(
+    r#"
+      INSERT INTO game_settlements (game_id, settled, settled_at)
+      VALUES ($1, TRUE, NOW())
+      ON CONFLICT (game_id) DO UPDATE SET settled = TRUE, settled_at = NOW()
+    "#,
+  )
+  .bind(game_id)
+  .execute(pool)
+  .await?;
 
   Ok(())
 }

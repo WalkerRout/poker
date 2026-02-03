@@ -34,6 +34,14 @@ enum Error {
 impl IntoResponse for Error {
   fn into_response(self) -> Response {
     match &self {
+      Error::Database(db::Error::GameLocked) => {
+        let body = Json(json!({ "error": "game is settled and cannot be modified" }));
+        (StatusCode::LOCKED, body).into_response()
+      }
+      Error::Database(db::Error::NotFound) => {
+        let body = Json(json!({ "error": "not found" }));
+        (StatusCode::NOT_FOUND, body).into_response()
+      }
       Error::Database(_) => {
         tracing::error!("internal error - {}", self);
         let body = Json(json!({ "error": self.to_string() }));
@@ -94,6 +102,7 @@ impl Service for PokerService {
         "/api/games/{id}",
         get(games::get).put(games::update).delete(games::delete),
       )
+      .route("/api/games/{id}/settle", post(games::settle))
       .route("/api/stats", get(stats::all))
       .with_state(Arc::new(state))
   }
@@ -208,6 +217,14 @@ mod games {
     Path(id): Path<Uuid>,
   ) -> Result<StatusCode, Error> {
     db::delete_game(&state.pool, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+  }
+
+  pub async fn settle(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+  ) -> Result<StatusCode, Error> {
+    db::settle_game(&state.pool, id).await?;
     Ok(StatusCode::NO_CONTENT)
   }
 }
@@ -468,7 +485,6 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       </table>
       <div class="actions">
         <button class="secondary" onclick="closeModal('view-modal')">Close</button>
-        <button onclick="closeModal('view-modal');editGame(viewingGameId)">Edit</button>
       </div>
     </div>
   </div>
@@ -551,14 +567,16 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         document.getElementById('games-body').innerHTML = games.map(g => {
           const balanced = g.pot_cents === g.payout_cents;
           const icon = balanced ? '<span class="positive">✓</span>' : '<span class="negative">✗</span>';
+          const actions = g.settled
+            ? `<button class="small secondary" onclick="viewGame('${g.id}')">View</button>
+               <span class="muted" style="font-size: 0.8rem; padding: 4px 8px;">Settled</span>`
+            : `<button class="small secondary" onclick="viewGame('${g.id}')">View</button>
+               <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>`;
           return `
             <tr>
               <td>${icon} ${formatDate(g.started_at)}</td>
               <td>${formatMoney(g.pot_cents)}</td>
-              <td>
-                <button class="small secondary" onclick="viewGame('${g.id}')">View</button>
-                <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>
-              </td>
+              <td>${actions}</td>
             </tr>
           `;
         }).join('');
