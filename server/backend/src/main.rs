@@ -490,6 +490,8 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
   </div>
 
   <script>
+    const NEW_GAME_PLACEHOLDER_ROWS = 4;
+  
     let players = [];
     let editingGameId = null;
     let viewingGameId = null;
@@ -676,9 +678,14 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       document.getElementById('game-date').value = getTodayDate();
       document.getElementById('game-start-time').value = '';
       document.getElementById('game-end-time').value = '';
-      document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
+      document.getElementById('entries-container').innerHTML = '';
       document.getElementById('game-error').style.display = 'none';
       document.getElementById('balance-check').style.display = 'none';
+
+      for (let i = 0; i < NEW_GAME_PLACEHOLDER_ROWS; i++) {
+        addEntryRow('', 20, 0);
+      }
+
       openModal('game-modal');
     }
 
