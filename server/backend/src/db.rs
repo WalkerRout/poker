@@ -143,7 +143,7 @@ pub async fn delete_player(pool: &PgPool, id: Uuid) -> Result<(), Error> {
 pub struct Game {
   pub id: Uuid,
   pub started_at: DateTime<Utc>,
-  pub ended_at: DateTime<Utc>,
+  pub ended_at: Option<DateTime<Utc>>,
   pub created_at: DateTime<Utc>,
   pub updated_at: DateTime<Utc>,
 }
@@ -174,7 +174,7 @@ pub struct GameEntryWithPlayer {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateGameInput {
   pub started_at: DateTime<Utc>,
-  pub ended_at: DateTime<Utc>,
+  pub ended_at: Option<DateTime<Utc>>,
   pub entries: Vec<CreateGameEntryInput>,
 }
 
@@ -300,7 +300,7 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
 pub struct GameWithPot {
   pub id: Uuid,
   pub started_at: DateTime<Utc>,
-  pub ended_at: DateTime<Utc>,
+  pub ended_at: Option<DateTime<Utc>>,
   pub created_at: DateTime<Utc>,
   pub updated_at: DateTime<Utc>,
   pub pot_cents: i64,
@@ -332,7 +332,8 @@ pub async fn list_games(pool: &PgPool) -> Result<Vec<GameWithPot>, Error> {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateGameInput {
   pub started_at: Option<DateTime<Utc>>,
-  pub ended_at: Option<DateTime<Utc>>,
+  #[serde(default)]
+  pub ended_at: Option<Option<DateTime<Utc>>>,
   pub entries: Option<Vec<CreateGameEntryInput>>,
 }
 
@@ -343,11 +344,14 @@ pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Res
 
   let mut tx = pool.begin().await?;
 
+  let update_ended_at = input.ended_at.is_some();
+  let ended_at_value = input.ended_at.flatten();
+
   let game = sqlx::query_as::<_, Game>(
     r#"
       UPDATE games SET
         started_at = COALESCE($2, started_at),
-        ended_at = COALESCE($3, ended_at),
+        ended_at = CASE WHEN $3 THEN $4 ELSE ended_at END,
         updated_at = NOW()
       WHERE id = $1
       RETURNING id, started_at, ended_at, created_at, updated_at
@@ -355,7 +359,8 @@ pub async fn update_game(pool: &PgPool, id: Uuid, input: UpdateGameInput) -> Res
   )
   .bind(id)
   .bind(input.started_at)
-  .bind(input.ended_at)
+  .bind(update_ended_at)
+  .bind(ended_at_value)
   .fetch_optional(&mut *tx)
   .await?
   .ok_or(Error::NotFound)?;
