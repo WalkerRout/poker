@@ -62,7 +62,7 @@ impl<S> Server<S>
 where
   S: Service,
 {
-  /// Construct a `Server` given socket address parts and a `Service`
+  /// Construct a `Server` given a socket address and a `Service`
   #[instrument(name = "SERVICE", skip(addr, service))]
   pub async fn new(addr: impl Into<SocketAddr>, service: S) -> Result<Self, ServerError> {
     let addr = addr.into();
