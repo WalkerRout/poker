@@ -52,7 +52,7 @@ pub enum ServerError {
   FailedToServe(#[from] io::Error),
 }
 
-/// A service that runs on a specific address and port
+/// A service that runs on specific address and port
 pub struct Server<S> {
   service: S,
   listener: TcpListener,
