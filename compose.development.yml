@@ -31,3 +31,9 @@ services:
       - "80:80"
     profiles:
       - development
+
+networks:
+  internal:
+    driver: bridge
+  external:
+    driver: bridge
