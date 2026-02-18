@@ -1,7 +1,0 @@
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: counter-auth
-spec:
-  basicAuth:
-    secret: counter-auth

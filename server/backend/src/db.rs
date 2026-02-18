@@ -292,7 +292,11 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
     })
     .collect();
 
-  Ok(GameWithEntries { game, entries, settled })
+  Ok(GameWithEntries {
+    game,
+    entries,
+    settled,
+  })
 }
 
 // game with calculated pot from entries

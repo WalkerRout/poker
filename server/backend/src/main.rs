@@ -15,7 +15,7 @@ use sqlx::PgPool;
 
 use uuid::Uuid;
 
-use tracing::{info, warn, instrument};
+use tracing::{error, info, instrument, warn};
 use tracing_subscriber::filter::LevelFilter;
 
 mod db;
@@ -43,7 +43,7 @@ impl IntoResponse for Error {
         (StatusCode::NOT_FOUND, body).into_response()
       }
       Error::Database(_) => {
-        tracing::error!("internal error - {}", self);
+        error!("internal error - {}", self);
         let body = Json(json!({ "error": self.to_string() }));
         (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
       }
@@ -128,8 +128,7 @@ mod players {
     Json(req): Json<CreateRequest>,
   ) -> Result<Response, Error> {
     if req.force != Some(true) {
-      let existing =
-        db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
+      let existing = db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
       if !existing.is_empty() {
         return Err(Error::PlayerConflict(existing));
       }
@@ -173,8 +172,7 @@ mod players {
     State(state): State<Arc<AppState>>,
     Json(req): Json<CheckNameRequest>,
   ) -> Result<Json<Vec<db::Player>>, Error> {
-    let players =
-      db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
+    let players = db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
     Ok(Json(players))
   }
 }
@@ -182,7 +180,9 @@ mod players {
 mod games {
   use super::*;
 
-  pub async fn list(State(state): State<Arc<AppState>>) -> Result<Json<Vec<db::GameWithPot>>, Error> {
+  pub async fn list(
+    State(state): State<Arc<AppState>>,
+  ) -> Result<Json<Vec<db::GameWithPot>>, Error> {
     let games = db::list_games(&state.pool).await?;
     Ok(Json(games))
   }
