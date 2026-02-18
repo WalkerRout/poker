@@ -75,7 +75,7 @@ impl PokerService {
     info!("attempting migrations...");
     match db::migrate(&pool).await {
       Ok(()) => info!("migrations completed successfully"),
-      Err(e) => warn!("migrations skipped (db may be unavailable): {}", e),
+      Err(e) => warn!("migrations skipped (db may be unavailable) - {}", e),
     }
 
     Ok(Self { pool })
