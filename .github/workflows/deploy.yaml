@@ -15,7 +15,12 @@ jobs:
           client-payload: |
             {
               "repo": "WalkerRout/counter",
-              "image": "counter-server",
-              "namespace": "counter",
-              "deployment": "counter-server"
+              "services": [
+                {
+                  "image": "counter-server",
+                  "context": "server",
+                  "dockerfile": "server/Dockerfile",
+                  "target": "production"
+                }
+              ]
             }
