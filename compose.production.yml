@@ -1,6 +1,7 @@
 services:
   server-production:
     container_name: counter-server
+    image: counter-server:latest
     build:
       context: server
       dockerfile: Dockerfile
