@@ -445,7 +445,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
           <input type="time" id="game-start-time">
         </div>
         <div class="form-row">
-          <label>End Time</label>
+          <label>End Time (optional)</label>
           <input type="time" id="game-end-time">
         </div>
       </div>
@@ -490,6 +490,8 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
   </div>
 
   <script>
+    const NEW_GAME_PLACEHOLDER_ROWS = 4;
+  
     let players = [];
     let editingGameId = null;
     let viewingGameId = null;
@@ -567,6 +569,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         document.getElementById('games-body').innerHTML = games.map(g => {
           const balanced = g.pot_cents === g.payout_cents;
           const icon = balanced ? '<span class="positive">✓</span>' : '<span class="negative">✗</span>';
+          const inProgress = !g.ended_at ? ' <span class="muted" style="font-size:0.8rem">(in progress)</span>' : '';
           const actions = g.settled
             ? `<button class="small secondary" onclick="viewGame('${g.id}')">View</button>
                <span class="muted" style="font-size: 0.8rem; padding: 4px 8px;">Settled</span>`
@@ -574,7 +577,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
                <button class="small secondary" onclick="editGame('${g.id}')">Edit</button>`;
           return `
             <tr>
-              <td>${icon} ${formatDate(g.started_at)}</td>
+              <td>${icon} ${formatDate(g.started_at)}${inProgress}</td>
               <td>${formatMoney(g.pot_cents)}</td>
               <td>${actions}</td>
             </tr>
@@ -676,9 +679,14 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       document.getElementById('game-date').value = getTodayDate();
       document.getElementById('game-start-time').value = '';
       document.getElementById('game-end-time').value = '';
-      document.getElementById('entries-container').innerHTML = '<div class="empty-msg">Click "+ Add" to add players</div>';
+      document.getElementById('entries-container').innerHTML = '';
       document.getElementById('game-error').style.display = 'none';
       document.getElementById('balance-check').style.display = 'none';
+
+      for (let i = 0; i < NEW_GAME_PLACEHOLDER_ROWS; i++) {
+        addEntryRow('', 20, 0);
+      }
+
       openModal('game-modal');
     }
 
@@ -689,7 +697,6 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         document.getElementById('game-modal-title').textContent = 'Edit Game';
         
         const startDate = new Date(game.game.started_at);
-        const endDate = new Date(game.game.ended_at);
         
         // Extract local date for the date input
         const year = startDate.getFullYear();
@@ -697,7 +704,12 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         const day = String(startDate.getDate()).padStart(2, '0');
         document.getElementById('game-date').value = `${year}-${month}-${day}`;
         document.getElementById('game-start-time').value = startDate.toTimeString().slice(0, 5);
-        document.getElementById('game-end-time').value = endDate.toTimeString().slice(0, 5);
+        if (game.game.ended_at) {
+          const endDate = new Date(game.game.ended_at);
+          document.getElementById('game-end-time').value = endDate.toTimeString().slice(0, 5);
+        } else {
+          document.getElementById('game-end-time').value = '';
+        }
         
         document.getElementById('entries-container').innerHTML = '';
         game.entries.forEach(e => addEntryRow(e.player.id, e.entry.buy_in_cents / 100, e.entry.winnings_cents / 100));
@@ -715,13 +727,17 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       try {
         const game = await api('/games/' + id);
         const startDate = new Date(game.game.started_at);
-        const endDate = new Date(game.game.ended_at);
         
         // Format date and time
         const dateStr = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
         const startTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        const endTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        document.getElementById('view-game-date').textContent = `${dateStr} • ${startTime} - ${endTime}`;
+        if (game.game.ended_at) {
+          const endDate = new Date(game.game.ended_at);
+          const endTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          document.getElementById('view-game-date').textContent = `${dateStr} \u2022 ${startTime} - ${endTime}`;
+        } else {
+          document.getElementById('view-game-date').textContent = `${dateStr} \u2022 ${startTime} - In progress`;
+        }
         
         // Calculate totals
         let totalIn = 0, totalOut = 0;
@@ -734,12 +750,12 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         const balanceEl = document.getElementById('view-balance');
         if (totalIn === totalOut) {
           balanceEl.className = 'balance-check valid';
-          balanceEl.textContent = `✓ Balanced - Pot: ${formatMoney(totalIn)}`;
+          balanceEl.textContent = `\u2713 Balanced - Pot: ${formatMoney(totalIn)}`;
         } else {
           balanceEl.className = 'balance-check invalid';
           const diff = totalIn - totalOut;
           const msg = diff > 0 ? `${formatMoney(diff)} unpaid` : `${formatMoney(Math.abs(diff))} overpaid`;
-          balanceEl.textContent = `✗ Unbalanced - Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
+          balanceEl.textContent = `\u2717 Unbalanced - Pot: ${formatMoney(totalIn)}, Paid: ${formatMoney(totalOut)} (${msg})`;
         }
         
         // Sort entries by winnings (winners first)
@@ -792,7 +808,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
         </select>
         <input type="number" class="entry-buyin" placeholder="In" value="${buyIn}" oninput="updateBalance()">
         <input type="number" class="entry-winnings" placeholder="Out" value="${winnings}" oninput="updateBalance()">
-        <button class="remove" onclick="removeEntry(this)">×</button>
+        <button class="remove" onclick="removeEntry(this)">\u00d7</button>
       `;
       document.getElementById('entries-container').appendChild(div);
       updateBalance();
@@ -820,7 +836,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       
       if (Math.abs(diff) < 0.01) {
         balanceEl.className = 'balance-check valid';
-        balanceEl.textContent = `✓ Balanced - Pot: $${totalIn.toFixed(2)}`;
+        balanceEl.textContent = `\u2713 Balanced - Pot: $${totalIn.toFixed(2)}`;
       } else {
         balanceEl.className = 'balance-check invalid';
         const remaining = diff > 0 ? `$${diff.toFixed(2)} left to pay out` : `$${Math.abs(diff).toFixed(2)} extra paid out`;
@@ -847,8 +863,8 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       const startTime = document.getElementById('game-start-time').value;
       const endTime = document.getElementById('game-end-time').value;
       
-      if (!startTime || !endTime) {
-        errEl.textContent = 'Please enter start and end times';
+      if (!startTime) {
+        errEl.textContent = 'Please enter a start time';
         errEl.style.display = 'block';
         return;
       }
@@ -879,7 +895,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       }
 
       const startedAt = new Date(date + 'T' + startTime + ':00').toISOString();
-      const endedAt = new Date(date + 'T' + endTime + ':00').toISOString();
+      const endedAt = endTime ? new Date(date + 'T' + endTime + ':00').toISOString() : null;
 
       const body = { started_at: startedAt, ended_at: endedAt, entries };
 
