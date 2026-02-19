@@ -1,0 +1,5 @@
+# nginx service is development only, prod uses traefik w/ mesh
+
+FROM nginx:1.29.1-alpine-slim
+
+COPY nginx.conf /etc/nginx/nginx.conf
