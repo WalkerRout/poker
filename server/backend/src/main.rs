@@ -71,11 +71,11 @@ impl PokerService {
     info!("creating database pool (lazy connection)...");
     let pool = db::connect_lazy(&database_url)?;
 
-    // try to run migrations, but don't crash if DB is unavailable
+    // try to run migrations, but don't crash if db is unavailable
     info!("attempting migrations...");
     match db::migrate(&pool).await {
       Ok(()) => info!("migrations completed successfully"),
-      Err(e) => warn!("migrations skipped (db may be unavailable): {}", e),
+      Err(e) => warn!("migrations skipped (db may be unavailable) - {}", e),
     }
 
     Ok(Self { pool })

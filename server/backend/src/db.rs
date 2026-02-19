@@ -299,7 +299,7 @@ pub async fn get_game_with_entries(pool: &PgPool, id: Uuid) -> Result<GameWithEn
   })
 }
 
-// game with calculated pot from entries
+// game with calculated pot from entries, see migrations
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct GameWithPot {
   pub id: Uuid,

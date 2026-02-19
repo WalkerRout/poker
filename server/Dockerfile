@@ -3,6 +3,7 @@ WORKDIR /app
 
 FROM chef AS planner
 COPY . .
+# examines project to construct a recipe to represent dependency build info
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
