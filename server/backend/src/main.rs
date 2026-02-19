@@ -53,6 +53,11 @@ impl IntoResponse for Error {
       Error::PlayerConflict(players) => {
         (StatusCode::CONFLICT, Json(players.clone())).into_response()
       }
+      Error::EnvIssue(_) => {
+        error!("environment configuration error - {}", self);
+        let body = Json(json!({ "error": "server configuration error" }));
+        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+      }
     }
   }
 }
