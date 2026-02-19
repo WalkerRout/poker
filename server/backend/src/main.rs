@@ -29,6 +29,9 @@ enum Error {
 
   #[error("player with this name already exists")]
   PlayerConflict(Vec<db::Player>),
+
+  #[error("issue with environment - {0}")]
+  EnvIssue(#[from] env::VarError),
 }
 
 impl IntoResponse for Error {
@@ -66,7 +69,18 @@ struct PokerService {
 
 impl PokerService {
   async fn new() -> Result<Self, Error> {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = match env::var("DATABASE_URL") {
+      Ok(url) => url,
+      Err(_) => {
+        warn!("DATABASE_URL not set, falling back to URL parts...");
+        let host = env::var("DATABASE_HOST")?;
+        let port = env::var("DATABASE_PORT").unwrap_or_else(|_| "5432".to_string());
+        let name = env::var("DATABASE_NAME")?;
+        let user = env::var("DATABASE_USER")?;
+        let password = env::var("DATABASE_PASSWORD")?;
+        format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, name)
+      }
+    };
 
     info!("creating database pool (lazy connection)...");
     let pool = db::connect_lazy(&database_url)?;
