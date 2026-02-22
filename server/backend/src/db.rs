@@ -27,6 +27,7 @@ pub async fn migrate(pool: &PgPool) -> Result<(), Error> {
   Ok(())
 }
 
+#[allow(unused)]
 pub async fn connect(database_url: &str) -> Result<PgPool, Error> {
   let pool = PgPoolOptions::new()
     .max_connections(5)
