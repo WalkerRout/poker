@@ -301,6 +301,8 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       padding: 16px;
       overflow-x: hidden;
     }
+
+    .table-scroll { max-height: 300px; overflow-y: auto; }
     .container { max-width: 600px; margin: 0 auto; }
     h1 { font-size: 1.5rem; margin-bottom: 16px; }
     h2 { font-size: 1.1rem; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
@@ -411,26 +413,32 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
 
     <div id="stats-tab" class="card">
       <h2>Leaderboard</h2>
+      <div class="table-scroll">
       <table>
         <thead><tr><th>Player</th><th>Games</th><th>Net</th></tr></thead>
         <tbody id="stats-body"></tbody>
       </table>
+      </div>
     </div>
 
     <div id="games-tab" class="card" style="display:none">
       <h2>Games <button class="small" onclick="openGameModal()">+ New</button></h2>
+      <div class="table-scroll">
       <table>
         <thead><tr><th>Date</th><th>Pot</th><th></th></tr></thead>
         <tbody id="games-body"></tbody>
       </table>
+      </div>
     </div>
 
     <div id="players-tab" class="card" style="display:none">
       <h2>Players <button class="small" onclick="openPlayerModal()">+ Add</button></h2>
+      <div class="table-scroll">
       <table>
         <thead><tr><th>Name</th></tr></thead>
         <tbody id="players-body"></tbody>
       </table>
+      </div>
     </div>
   </div>
 
@@ -498,10 +506,12 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
       <h2 id="view-modal-title">Game Details</h2>
       <div id="view-game-date" style="color: #aaa; font-size: 0.85rem; margin-bottom: 12px;"></div>
       <div id="view-balance" class="balance-check" style="margin-bottom: 12px;"></div>
-      <table style="margin-bottom: 12px;">
+      <div class="table-scroll" style="margin-bottom: 12px;">
+      <table>
         <thead><tr><th>Player</th><th>In</th><th>Out</th><th>Net</th></tr></thead>
         <tbody id="view-entries"></tbody>
       </table>
+      </div>
       <div class="actions">
         <button class="secondary" onclick="closeModal('view-modal')">Close</button>
       </div>
