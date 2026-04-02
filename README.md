@@ -1,4 +1,4 @@
-# counter
+# poker
 
 Interface to track a (custom) limited count.
 

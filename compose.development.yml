@@ -1,6 +1,6 @@
 services:
   server-development:
-    container_name: counter-server
+    container_name: poker-server
     build:
       context: server
       dockerfile: Dockerfile
@@ -17,7 +17,7 @@ services:
       - development
 
   reverse-proxy-development:
-    container_name: counter-reverse-proxy
+    container_name: poker-reverse-proxy
     build:
       context: nginx
       dockerfile: Dockerfile

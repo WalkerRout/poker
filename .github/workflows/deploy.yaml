@@ -14,10 +14,10 @@ jobs:
           event-type: build
           client-payload: |
             {
-              "repo": "WalkerRout/counter",
+              "repo": "WalkerRout/poker",
               "services": [
                 {
-                  "image": "counter-server",
+                  "image": "poker-server",
                   "context": "server",
                   "dockerfile": "server/Dockerfile",
                   "target": "production"
