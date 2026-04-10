@@ -10,4 +10,4 @@ services:
     profiles:
       - production
 
-# ClusterIP networks are internal to the cluster by default
+# ClusterIP is default network and is already internal to the cluster

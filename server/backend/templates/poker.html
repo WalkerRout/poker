@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Poker{% endblock title %}
+{% block description %}Poker Tracker{% endblock description %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="/static/css/poker.css">
+{% endblock extra_css %}
+
+{% block content %}
+  <div class="poker-container">
+    <h1>Poker Tracker</h1>
+
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('stats')">Stats</div>
+      <div class="tab" onclick="showTab('games')">Games</div>
+      <div class="tab" onclick="showTab('players')">Players</div>
+    </div>
+
+    <div id="stats-tab" class="card">
+      <h2>Leaderboard</h2>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Player</th><th>Games</th><th>Net</th></tr></thead>
+        <tbody id="stats-body"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div id="games-tab" class="card" style="display:none">
+      <h2>Games <button class="btn-primary small" onclick="openGameModal()">+ New</button></h2>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Pot</th><th></th></tr></thead>
+        <tbody id="games-body"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div id="players-tab" class="card" style="display:none">
+      <h2>Players <button class="btn-primary small" onclick="openPlayerModal()">+ Add</button></h2>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody id="players-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player Modal -->
+  <div id="player-modal" class="modal">
+    <div class="modal-content">
+      <h2>Add Player</h2>
+      <div class="form-row-block">
+        <label>First Name</label>
+        <input type="text" id="player-first" placeholder="John">
+      </div>
+      <div class="form-row-block">
+        <label>Last Name</label>
+        <input type="text" id="player-last" placeholder="Doe">
+      </div>
+      <div id="player-warning" class="warning" style="display: none;"></div>
+      <div class="actions">
+        <button class="btn-secondary" onclick="closeModal('player-modal')">Cancel</button>
+        <button class="btn-primary" onclick="createPlayer()">Add Player</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Modal -->
+  <div id="game-modal" class="modal">
+    <div class="modal-content">
+      <h2 id="game-modal-title">New Game</h2>
+      <div class="form-grid">
+        <div class="form-row-block">
+          <label>Start Time</label>
+          <input type="time" id="game-start-time">
+        </div>
+        <div class="form-row-block">
+          <label>End Time (optional)</label>
+          <input type="time" id="game-end-time">
+        </div>
+      </div>
+      <div class="form-row-block">
+        <label>Date (defaults to today)</label>
+        <input type="date" id="game-date">
+      </div>
+
+      <div style="margin-top: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label style="margin: 0;">Players</label>
+          <button class="btn-secondary small" onclick="addEntryRow()">+ Add</button>
+        </div>
+        <div id="entries-container">
+          <div class="empty-msg">Click "+ Add" to add players</div>
+        </div>
+        <div id="balance-check" class="balance-check" style="display: none;"></div>
+      </div>
+
+      <div id="game-error" class="error-message" style="display: none;"></div>
+      <div class="actions">
+        <button class="btn-secondary" onclick="closeModal('game-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveGame()">Save Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Game Modal -->
+  <div id="view-modal" class="modal">
+    <div class="modal-content">
+      <h2 id="view-modal-title">Game Details</h2>
+      <div id="view-game-date" class="muted" style="font-size: 0.85rem; margin-bottom: 12px;"></div>
+      <div id="view-balance" class="balance-check" style="margin-bottom: 12px;"></div>
+      <div class="table-scroll" style="margin-bottom: 12px;">
+      <table>
+        <thead><tr><th>Player</th><th>In</th><th>Out</th><th>Net</th></tr></thead>
+        <tbody id="view-entries"></tbody>
+      </table>
+      </div>
+      <div class="actions">
+        <button class="btn-secondary" onclick="closeModal('view-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block extra_js %}
+  <script type="module" src="/static/js/poker.js"></script>
+{% endblock extra_js %}

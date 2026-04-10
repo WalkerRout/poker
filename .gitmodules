@@ -1,0 +1,3 @@
+[submodule "server/ui-schema"]
+	path = server/ui-schema
+	url = https://github.com/WalkerRout/ui-schema.git

@@ -6,11 +6,9 @@ services:
       dockerfile: Dockerfile
       target: development
     restart: unless-stopped
-    environment:
-      - UI_PASSWORD=${UI_PASSWORD} # optional password; ui will not be enabled if missing
     volumes:
       - ./server/backend:/app/backend
-      - ./server/service:/app/service
+      - ./server/frontend:/app/frontend
     networks:
       - internal
     profiles:
