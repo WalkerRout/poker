@@ -56,7 +56,7 @@ RUN cargo install cargo-watch
 # saved in an intermediate state...
 # we watch for frontend changes too, since the backend/build.rs file will
 # recompile the frontend typescript into javascript before compressing /static
-CMD cargo watch -w backend -w frontend -w ui-schema \
+CMD cargo watch -w backend -w frontend \
   -i "backend/static/**/*.gz" -i "backend/static/**/*.br" \
   -i "backend/static/**/*.js" -i "backend/static/**/*.js.map" \
   -x "check --release --target $(cat /rust_target.txt) --bin poker_server" \

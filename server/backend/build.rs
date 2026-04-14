@@ -27,7 +27,7 @@ fn main() -> io::Result<()> {
 fn copy_ui_schema() -> io::Result<()> {
   let manifest = env::var("CARGO_MANIFEST_DIR").unwrap();
   let manifest = Path::new(&manifest);
-  let ui_schema = manifest.join("../ui-schema");
+  let ui_schema = manifest.join("../frontend/ui-schema");
 
   if !ui_schema.exists() {
     return Err(io::Error::other(
