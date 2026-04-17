@@ -41,7 +41,6 @@ fn copy_ui_schema() -> io::Result<()> {
     if src.extension().is_some_and(|e| e == "css") {
       let dest = css_dest.join(src.file_name().unwrap());
       fs::copy(&src, &dest)?;
-      println!("cargo:rerun-if-changed={}", src.display());
     }
   }
 
@@ -52,7 +51,6 @@ fn copy_ui_schema() -> io::Result<()> {
     let src = entry?.path();
     let dest = fonts_dest.join(src.file_name().unwrap());
     fs::copy(&src, &dest)?;
-    println!("cargo:rerun-if-changed={}", src.display());
   }
 
   let tmpl_src = ui_schema.join("templates");
@@ -61,7 +59,6 @@ fn copy_ui_schema() -> io::Result<()> {
     let src = entry?.path();
     let dest = tmpl_dest.join(src.file_name().unwrap());
     fs::copy(&src, &dest)?;
-    println!("cargo:rerun-if-changed={}", src.display());
   }
 
   println!("cargo:warning=ui-schema assets copied successfully");
@@ -69,20 +66,23 @@ fn copy_ui_schema() -> io::Result<()> {
 }
 
 fn compile_typescript() -> io::Result<()> {
-  let frontend_src = "../frontend/src";
-  let js_output = "static/js";
+  let manifest = env::var("CARGO_MANIFEST_DIR").unwrap();
+  let manifest = Path::new(&manifest);
+  let frontend_src = manifest.join("../frontend/src");
+  let js_output = manifest.join("static/js");
 
-  fs::create_dir_all(js_output)?;
+  fs::create_dir_all(&js_output)?;
 
   let output = Command::new("esbuild")
     .args([
-      &format!("{}/poker.ts", frontend_src),
+      &format!("{}", frontend_src.join("poker.ts").display()),
+      &format!("{}", frontend_src.join("theme.ts").display()),
       "--bundle",
       "--minify",
       "--sourcemap",
       "--target=es2020",
       "--format=esm",
-      &format!("--outdir={}", js_output),
+      &format!("--outdir={}", js_output.display()),
     ])
     .output()
     .map_err(|e| io::Error::other(format!("Failed to run esbuild: {}", e)))?;

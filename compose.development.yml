@@ -5,10 +5,31 @@ services:
       context: server
       dockerfile: Dockerfile
       target: development
+    depends_on:
+      - db
     restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://poker:poker@db:5432/poker
     volumes:
       - ./server/backend:/app/backend
       - ./server/frontend:/app/frontend
+    networks:
+      - internal
+    profiles:
+      - development
+
+  db:
+    container_name: poker-db
+    build:
+      context: db
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: poker
+      POSTGRES_PASSWORD: poker
+      POSTGRES_DB: poker
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     networks:
       - internal
     profiles:
@@ -29,6 +50,9 @@ services:
       - "80:80"
     profiles:
       - development
+
+volumes:
+  pgdata:
 
 networks:
   internal:

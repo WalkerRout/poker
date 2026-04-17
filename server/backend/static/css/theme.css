@@ -1,0 +1,286 @@
+/* ui-shell: visual theme
+ *
+ * light theme: pink/pastel (from golf)
+ * dark theme:  dark/green  (from idp)
+ *
+ * all element-level styling uses these variables so both themes
+ * cascade automatically.
+ */
+
+/* ── light theme (default) ────────────────────────────────────── */
+
+:root {
+  --bg-color: #fce4ec;
+  --content-bg: #ffffff;
+  --content-border: transparent;
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --font-family: 'Inconsolata', monospace;
+  --header-footer-padding: 1rem;
+  --font-color: #333;
+  --font-color-secondary: #71717a;
+  --font-color-muted: #999;
+  --accent: #d14b72;
+  --accent-hover: #b0375e;
+  --accent-active: #8a2c4b;
+  --accent-gradient: #e91e63;
+  --accent-faint: rgba(209, 75, 114, 0.1);
+  --accent-border: rgba(209, 75, 114, 0.3);
+  --input-bg: #ffffff;
+  --input-border: #d4d4d8;
+  --error-color: #ef4444;
+  --error-bg: rgba(239, 68, 68, 0.1);
+  --success-bg: rgba(209, 75, 114, 0.1);
+  --card-bg: #fafafa;
+  --card-bg-hover: #ffffff;
+  --card-bg-active: #fff5f7;
+  --card-border: #e0e0e0;
+  --card-divider: #e8e8e8;
+  --scrollbar-track: #f1f1f1;
+  --scrollbar-thumb: rgba(209, 75, 114, 0.3);
+  --scrollbar-thumb-hover: rgba(209, 75, 114, 0.5);
+  --skeleton-bg: #f0f0f0;
+  --surface-bg: #ffffff;
+}
+
+/* ── dark theme ───────────────────────────────────────────────── */
+
+.dark {
+  --bg-color: #0a0a0a;
+  --content-bg: #18181b;
+  --content-border: #27272a;
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --font-color: #ededed;
+  --font-color-secondary: #a1a1aa;
+  --font-color-muted: #666;
+  --accent: #34d399;
+  --accent-hover: #10b981;
+  --accent-active: #059669;
+  --accent-gradient: #2dd4a8;
+  --accent-faint: rgba(52, 211, 153, 0.1);
+  --accent-border: rgba(52, 211, 153, 0.3);
+  --input-bg: #09090b;
+  --input-border: #27272a;
+  --error-color: #f87171;
+  --error-bg: rgba(248, 113, 113, 0.15);
+  --success-bg: rgba(52, 211, 153, 0.1);
+  --card-bg: #1f1f23;
+  --card-bg-hover: #252529;
+  --card-bg-active: #1a2e26;
+  --card-border: #2d2d32;
+  --card-divider: #27272a;
+  --scrollbar-track: #1a1a1e;
+  --scrollbar-thumb: rgba(52, 211, 153, 0.3);
+  --scrollbar-thumb-hover: rgba(52, 211, 153, 0.5);
+  --skeleton-bg: #252529;
+  --surface-bg: #18181b;
+}
+
+/* ── element styles ───────────────────────────────────────────── */
+
+a {
+  color: var(--accent);
+  font-weight: bold;
+  text-decoration: none;
+  transition: color 0.3s ease-in-out;
+}
+
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+a:active {
+  color: var(--accent-active);
+}
+
+strong {
+  color: var(--accent);
+}
+
+h1 {
+  font-size: 1.5rem;
+  color: var(--font-color);
+}
+
+h2 {
+  font-size: 1.1rem;
+  color: var(--font-color);
+}
+
+/* ── forms ────────────────────────────────────────────────────── */
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  color: var(--font-color-secondary);
+  font-weight: 600;
+}
+
+.form-group input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: var(--font-family);
+  color: var(--font-color);
+  background-color: var(--input-bg);
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-group input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── buttons ──────────────────────────────────────────────────── */
+
+.btn-primary {
+  padding: 0.7rem 1rem;
+  background-color: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: var(--font-family);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.btn-primary:active {
+  background-color: var(--accent-active);
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  background: none;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: var(--font-family);
+  color: var(--font-color-secondary);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-danger {
+  padding: 0.5rem 1rem;
+  background: none;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: var(--font-family);
+  color: var(--font-color-secondary);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-danger:hover {
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
+
+/* ── messages ─────────────────────────────────────────────────── */
+
+.message {
+  display: none;
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+.message.error {
+  color: var(--error-color);
+  background: var(--error-bg);
+}
+
+.message.success {
+  color: var(--accent);
+  background: var(--success-bg);
+}
+
+.error-message {
+  display: none;
+  color: var(--error-color);
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  background: var(--error-bg);
+  border-radius: 4px;
+}
+
+/* ── 404 ──────────────────────────────────────────────────────── */
+
+.error-code {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 12rem;
+  color: var(--accent);
+  text-shadow: 10px 0px 15px var(--shadow-color);
+  margin: 0;
+}
+
+.error-code h1 {
+  font-weight: 700;
+  margin: 0;
+}
+
+/* ── theme toggle ─────────────────────────────────────────────── */
+
+.theme-toggle {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 50;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  border: 1px solid var(--content-border, var(--input-border));
+  background-color: var(--content-bg);
+  color: var(--font-color);
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.theme-toggle:hover {
+  transform: scale(1.1);
+  background-color: var(--bg-color);
+}

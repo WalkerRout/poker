@@ -1,2 +1,6 @@
-*.log
-*.env*
+**/*.gz
+**/*.br
+debug
+target
+**/*.rs.bk
+*.pdb
