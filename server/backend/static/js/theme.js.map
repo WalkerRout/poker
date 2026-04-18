@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../frontend/src/theme.ts"],
+  "sourcesContent": ["const toggle = document.getElementById(\"theme-toggle\") as HTMLButtonElement;\nconst root = document.documentElement;\n\nfunction isDark(): boolean {\n  return root.classList.contains(\"dark\");\n}\n\nfunction updateIcon(): void {\n  toggle.textContent = isDark() ? \"\\u2600\\uFE0F\" : \"\\uD83C\\uDF19\";\n}\n\ntoggle.addEventListener(\"click\", () => {\n  root.classList.toggle(\"dark\");\n  localStorage.setItem(\"ui-schema-theme\", isDark() ? \"dark\" : \"light\");\n  updateIcon();\n});\n\nupdateIcon();\n"],
+  "mappings": "AAAA,IAAMA,EAAS,SAAS,eAAe,cAAc,EAC/CC,EAAO,SAAS,gBAEtB,SAASC,GAAkB,CACzB,OAAOD,EAAK,UAAU,SAAS,MAAM,CACvC,CAEA,SAASE,GAAmB,CAC1BH,EAAO,YAAcE,EAAO,EAAI,eAAiB,WACnD,CAEAF,EAAO,iBAAiB,QAAS,IAAM,CACrCC,EAAK,UAAU,OAAO,MAAM,EAC5B,aAAa,QAAQ,kBAAmBC,EAAO,EAAI,OAAS,OAAO,EACnEC,EAAW,CACb,CAAC,EAEDA,EAAW",
+  "names": ["toggle", "root", "isDark", "updateIcon"]
+}

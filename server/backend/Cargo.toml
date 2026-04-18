@@ -1,26 +1,36 @@
 [package]
-# the backend is the main executable of the server...
-name = "server"
+name = "poker_server"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
 # networking
-axum = "0.8.4"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.145"
-# async
-tokio = { version = "1.47.1", features = ["rt", "macros"] }
+axum = "0.8.1"
+tokio = { version = "1.43.0", features = ["rt", "macros", "time"] }
+tower-http = { version = "0.6.2", features = ["fs", "set-header", "compression-br", "compression-gzip"] }
+tower-layer = "0.3.3"
+# templates
+askama = "0.15.4"
 # logging
-tracing-subscriber = "0.3.20"
 tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
 log-panics = "2.1.0"
-# errors
-anyhow = "1.0.99"
-thiserror = "2.0.17"
-# database
-chrono = { version = "0.4", features = ["serde"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "migrate", "uuid", "chrono"] }
+# error handling
+anyhow = "1.0.95"
+thiserror = "2.0.16"
+# util
+serde = { version = "1.0.225", features = ["derive"] }
+serde_json = "1.0.149"
+chrono = { version = "0.4.42", features = ["serde"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
-# homespun
-lib-service = { path = "../service" }
+# database
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "migrate", "uuid", "chrono"] }
+
+[build-dependencies]
+brotli = "7.0.0"
+flate2 = "1.1.1"
+lightningcss = { version = "1.0.0-alpha.68" }
+
+[target.'cfg(target_env = "musl")'.dependencies]
+mimalloc = "0.1.43"
