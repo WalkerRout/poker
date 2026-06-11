@@ -4,12 +4,11 @@
   width: 100%;
   max-width: 600px;
   gap: 12px;
+  padding: 2rem 0;
 }
 
-/* modal tables stay self-contained; in the main cards the wrapper is a
- * passthrough so the outer .content owns the scroll (one scrollbar, not two) */
 .table-scroll { max-height: 300px; overflow-y: auto; }
-.card .table-scroll { display: contents; max-height: none; }
+.card .table-scroll { max-height: none; overflow: visible; }
 
 .card {
   background: var(--card-bg);
@@ -37,7 +36,7 @@
 
 .small { padding: 4px 10px; font-size: 0.8rem; }
 
-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.9rem; }
 th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--card-divider); }
 th {
   background: var(--card-bg);

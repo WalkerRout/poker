@@ -39,11 +39,11 @@ main {
   align-items: flex-start;
   background-color: var(--content-bg);
   border: 1px solid var(--content-border, transparent);
-  padding: 2rem;
   border-radius: 8px;
   box-shadow: 4px 4px 10px var(--shadow-color);
   width: 75vw;
   height: 75vh;
+  padding: 0 2rem;
   overflow: auto;
 }
 
@@ -67,7 +67,7 @@ footer {
   .content {
     width: 95vw;
     height: calc(100vh - 120px);
-    padding: 1rem;
+    padding: 0 1rem;
     border-radius: 4px;
   }
 
@@ -81,6 +81,6 @@ footer {
 @media (max-width: 480px) {
   .content {
     width: 98vw;
-    padding: 0.75rem;
+    padding: 0 0.75rem;
   }
 }
