@@ -3,6 +3,10 @@ const NEW_GAME_PLACEHOLDER_ROWS = 4;
 let players: any[] = [];
 let editingGameId: string | null = null;
 
+let leaderboard: any[] = [];
+let lbSort = 'net';
+let lbHideInactive = true;
+
 async function api(path: string, opts: any = {}) {
   const res = await fetch('/api' + path, {
     headers: { 'Content-Type': 'application/json' },
@@ -36,23 +40,91 @@ function showTab(name: string) {
 }
 (window as any).showTab = showTab;
 
+function formatSignedMoney(cents: number) {
+  return (cents > 0 ? '+' : '') + formatMoney(cents);
+}
+
+function moneyClass(cents: number) {
+  return cents > 0 ? 'positive' : (cents < 0 ? 'negative' : '');
+}
+
+function leaderboardName(player: any) {
+  const dupes = leaderboard.filter(s => s.player.first_name === player.first_name && s.player.last_name === player.last_name);
+  return dupes.length > 1
+    ? `${player.first_name} ${player.last_name} (${player.id.slice(-6)})`
+    : `${player.first_name} ${player.last_name}`;
+}
+
+function leaderboardCard(s: any, rank: number) {
+  const netClass = moneyClass(s.net_cents);
+  const roiPct = `${s.roi > 0 ? '+' : ''}${(s.roi * 100).toFixed(0)}%`;
+  const winPct = `${(s.win_rate * 100).toFixed(0)}%`;
+  const chips = [
+    `<span class="chip">${s.total_games} games</span>`,
+    `<span class="chip">${winPct} wins</span>`,
+    `<span class="chip ${moneyClass(s.net_cents)}">ROI ${roiPct}</span>`,
+    `<span class="chip ${moneyClass(s.avg_net_cents)}">avg ${formatSignedMoney(s.avg_net_cents)}</span>`,
+    `<span class="chip ${moneyClass(s.biggest_win_cents)}">best ${formatSignedMoney(s.biggest_win_cents)}</span>`,
+    `<span class="chip ${moneyClass(s.biggest_loss_cents)}">worst ${formatSignedMoney(s.biggest_loss_cents)}</span>`,
+  ];
+  if (s.streak > 0) chips.push(`<span class="chip positive">W${s.streak}</span>`);
+  else if (s.streak < 0) chips.push(`<span class="chip negative">L${-s.streak}</span>`);
+  return `
+    <div class="lb-card ${netClass}">
+      <span class="lb-rank">${rank}</span>
+      <div class="lb-body">
+        <div class="lb-top">
+          <span class="lb-name">${leaderboardName(s.player)}</span>
+          <span class="lb-net ${netClass}">${formatSignedMoney(s.net_cents)}</span>
+        </div>
+        <div class="lb-chips">${chips.join('')}</div>
+      </div>
+    </div>`;
+}
+
+function renderLeaderboard() {
+  const container = document.getElementById('leaderboard')!;
+  let rows = leaderboard.slice();
+  if (lbHideInactive) rows = rows.filter(s => s.total_games > 0);
+
+  const sorters: Record<string, (a: any, b: any) => number> = {
+    net: (a, b) => b.net_cents - a.net_cents,
+    roi: (a, b) => b.roi - a.roi || b.net_cents - a.net_cents,
+    win: (a, b) => b.win_rate - a.win_rate || b.net_cents - a.net_cents,
+    games: (a, b) => b.total_games - a.total_games || b.net_cents - a.net_cents,
+  };
+  rows.sort(sorters[lbSort] || sorters.net);
+
+  if (rows.length === 0) {
+    container.innerHTML = '<div class="muted lb-empty">No data yet</div>';
+    return;
+  }
+  container.innerHTML = rows.map((s, i) => leaderboardCard(s, i + 1)).join('');
+}
+
 async function loadStats() {
   try {
-    const stats = await api('/stats');
-    if (!stats || stats.length === 0) {
-      document.getElementById('stats-body')!.innerHTML = '<tr><td colspan="3" class="muted">No data yet</td></tr>';
-      return;
-    }
-    document.getElementById('stats-body')!.innerHTML = stats.map((s: any) => {
-      const dupes = stats.filter((st: any) => st.player.first_name === s.player.first_name && st.player.last_name === s.player.last_name);
-      const name = dupes.length > 1
-        ? `${s.player.first_name} ${s.player.last_name} (${s.player.id.slice(-6)})`
-        : `${s.player.first_name} ${s.player.last_name}`;
-      return `<tr><td>${name}</td><td>${s.total_games}</td><td class="${s.net_cents >= 0 ? 'positive' : 'negative'}">${formatMoney(s.net_cents)}</td></tr>`;
-    }).join('');
+    leaderboard = await api('/stats') || [];
+    renderLeaderboard();
   } catch {
-    document.getElementById('stats-body')!.innerHTML = '<tr><td colspan="3" class="muted">Failed to load</td></tr>';
+    document.getElementById('leaderboard')!.innerHTML = '<div class="muted lb-empty">Failed to load</div>';
   }
+}
+
+function initStatsControls() {
+  document.querySelectorAll('#lb-sort button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      lbSort = (btn as HTMLElement).dataset.sort || 'net';
+      document.querySelectorAll('#lb-sort button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderLeaderboard();
+    });
+  });
+  const hide = document.getElementById('lb-hide-inactive') as HTMLInputElement;
+  hide.addEventListener('change', () => {
+    lbHideInactive = hide.checked;
+    renderLeaderboard();
+  });
 }
 
 async function loadGames() {
@@ -335,6 +407,7 @@ async function saveGame() {
 (window as any).saveGame = saveGame;
 
 // init
+initStatsControls();
 loadStats();
 loadGames();
 loadPlayers();

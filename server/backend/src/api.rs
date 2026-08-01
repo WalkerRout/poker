@@ -191,8 +191,8 @@ mod games {
 mod stats {
   use super::*;
 
-  pub async fn all(State(state): State<AppState>) -> Result<Json<Vec<db::PlayerStats>>, Error> {
-    let stats = db::get_all_player_stats(&state.pool).await?;
+  pub async fn all(State(state): State<AppState>) -> Result<Json<Vec<db::PlayerLeaderboard>>, Error> {
+    let stats = db::get_leaderboard(&state.pool).await?;
     Ok(Json(stats))
   }
 }

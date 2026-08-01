@@ -17,14 +17,20 @@
       <div class="tab" onclick="showTab('players')">Players</div>
     </div>
 
-    <div id="stats-tab" class="card">
-      <h2>Leaderboard</h2>
-      <div class="table-scroll">
-      <table>
-        <thead><tr><th>Player</th><th>Games</th><th>Net</th></tr></thead>
-        <tbody id="stats-body"></tbody>
-      </table>
+    <div id="stats-tab" class="dashboard">
+      <div class="stats-header">
+        <h2>Leaderboard</h2>
+        <div class="stats-controls">
+          <div class="segmented" id="lb-sort">
+            <button type="button" data-sort="net" class="active">Net</button>
+            <button type="button" data-sort="roi">ROI</button>
+            <button type="button" data-sort="win">Win%</button>
+            <button type="button" data-sort="games">Games</button>
+          </div>
+          <label class="toggle"><input type="checkbox" id="lb-hide-inactive" checked>Hide inactive</label>
+        </div>
       </div>
+      <div id="leaderboard" class="leaderboard"></div>
     </div>
 
     <div id="games-tab" class="card" style="display:none">

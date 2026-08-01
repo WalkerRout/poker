@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use chrono::{DateTime, Utc};
 
 use serde::{Deserialize, Serialize};
@@ -488,8 +490,23 @@ pub async fn get_player_stats(pool: &PgPool, player_id: Uuid) -> Result<PlayerSt
   })
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PlayerLeaderboard {
+  pub player: Player,
+  pub total_games: i64,
+  pub total_buy_in_cents: i64,
+  pub total_winnings_cents: i64,
+  pub net_cents: i64,
+  pub avg_net_cents: i64,
+  pub roi: f64,
+  pub biggest_win_cents: i64,
+  pub biggest_loss_cents: i64,
+  pub win_rate: f64,
+  pub streak: i32,
+}
+
 #[derive(Debug, FromRow)]
-struct AllStatsRow {
+struct LeaderboardRow {
   id: Uuid,
   first_name: String,
   last_name: String,
@@ -497,29 +514,83 @@ struct AllStatsRow {
   total_games: i64,
   total_buy_in_cents: i64,
   total_winnings_cents: i64,
+  biggest_win_cents: i64,
+  biggest_loss_cents: i64,
+  games_won: i64,
 }
 
-pub async fn get_all_player_stats(pool: &PgPool) -> Result<Vec<PlayerStats>, Error> {
-  let rows = sqlx::query_as::<_, AllStatsRow>(
+#[derive(Debug, FromRow)]
+struct StreakRow {
+  player_id: Uuid,
+  net_cents: i32,
+}
+
+pub async fn get_leaderboard(pool: &PgPool) -> Result<Vec<PlayerLeaderboard>, Error> {
+  let rows = sqlx::query_as::<_, LeaderboardRow>(
     r#"
-      SELECT 
+      SELECT
         p.id, p.first_name, p.last_name, p.created_at,
-        COUNT(DISTINCT ge.game_id) as total_games,
-        COALESCE(SUM(ge.buy_in_cents), 0) as total_buy_in_cents,
-        COALESCE(SUM(ge.winnings_cents), 0) as total_winnings_cents
+        COUNT(ge.game_id) AS total_games,
+        COALESCE(SUM(ge.buy_in_cents), 0) AS total_buy_in_cents,
+        COALESCE(SUM(ge.winnings_cents), 0) AS total_winnings_cents,
+        COALESCE(MAX(ge.winnings_cents - ge.buy_in_cents), 0)::bigint AS biggest_win_cents,
+        COALESCE(MIN(ge.winnings_cents - ge.buy_in_cents), 0)::bigint AS biggest_loss_cents,
+        COALESCE(SUM(CASE WHEN ge.winnings_cents - ge.buy_in_cents > 0 THEN 1 ELSE 0 END), 0) AS games_won
       FROM players p
       LEFT JOIN game_entries ge ON ge.player_id = p.id
       GROUP BY p.id, p.first_name, p.last_name, p.created_at
-      ORDER BY (COALESCE(SUM(ge.winnings_cents), 0) - COALESCE(SUM(ge.buy_in_cents), 0)) DESC
     "#,
   )
   .fetch_all(pool)
   .await?;
 
-  Ok(
-    rows
-      .into_iter()
-      .map(|row| PlayerStats {
+  let streak_rows = sqlx::query_as::<_, StreakRow>(
+    r#"
+      SELECT ge.player_id, (ge.winnings_cents - ge.buy_in_cents) AS net_cents
+      FROM game_entries ge
+      JOIN games g ON g.id = ge.game_id
+      ORDER BY g.started_at DESC, ge.created_at DESC
+    "#,
+  )
+  .fetch_all(pool)
+  .await?;
+
+  let mut streaks: HashMap<Uuid, i32> = HashMap::new();
+  let mut done: HashSet<Uuid> = HashSet::new();
+  for row in &streak_rows {
+    if done.contains(&row.player_id) {
+      continue;
+    }
+    let sign = row.net_cents.signum();
+    if sign == 0 {
+      done.insert(row.player_id);
+      continue;
+    }
+    let streak = streaks.entry(row.player_id).or_insert(0);
+    if *streak == 0 || streak.signum() == sign {
+      *streak += sign;
+    } else {
+      done.insert(row.player_id);
+    }
+  }
+
+  let mut leaderboard: Vec<PlayerLeaderboard> = rows
+    .into_iter()
+    .map(|row| {
+      let net_cents = row.total_winnings_cents - row.total_buy_in_cents;
+      let avg_net_cents = net_cents.checked_div(row.total_games).unwrap_or(0);
+      let roi = if row.total_buy_in_cents > 0 {
+        net_cents as f64 / row.total_buy_in_cents as f64
+      } else {
+        0.0
+      };
+      let win_rate = if row.total_games > 0 {
+        row.games_won as f64 / row.total_games as f64
+      } else {
+        0.0
+      };
+      let streak = streaks.get(&row.id).copied().unwrap_or(0);
+      PlayerLeaderboard {
         player: Player {
           id: row.id,
           first_name: row.first_name,
@@ -529,8 +600,18 @@ pub async fn get_all_player_stats(pool: &PgPool) -> Result<Vec<PlayerStats>, Err
         total_games: row.total_games,
         total_buy_in_cents: row.total_buy_in_cents,
         total_winnings_cents: row.total_winnings_cents,
-        net_cents: row.total_winnings_cents - row.total_buy_in_cents,
-      })
-      .collect(),
-  )
+        net_cents,
+        avg_net_cents,
+        roi,
+        biggest_win_cents: row.biggest_win_cents,
+        biggest_loss_cents: row.biggest_loss_cents,
+        win_rate,
+        streak,
+      }
+    })
+    .collect();
+
+  leaderboard.sort_by(|a, b| b.net_cents.cmp(&a.net_cents));
+
+  Ok(leaderboard)
 }
