@@ -615,3 +615,100 @@ pub async fn get_leaderboard(pool: &PgPool) -> Result<Vec<PlayerLeaderboard>, Er
 
   Ok(leaderboard)
 }
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct TimelineGame {
+  pub id: Uuid,
+  pub started_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PlayerSeries {
+  pub player: Player,
+  pub points: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NetTimeline {
+  pub games: Vec<TimelineGame>,
+  pub series: Vec<PlayerSeries>,
+}
+
+#[derive(Debug, FromRow)]
+struct TimelineEntryRow {
+  game_id: Uuid,
+  player_id: Uuid,
+  net_cents: i32,
+  first_name: String,
+  last_name: String,
+  created_at: DateTime<Utc>,
+}
+
+pub async fn get_net_timeline(pool: &PgPool) -> Result<NetTimeline, Error> {
+  let games = sqlx::query_as::<_, TimelineGame>(
+    r#"
+      SELECT id, started_at
+      FROM games
+      ORDER BY started_at ASC, created_at ASC
+    "#,
+  )
+  .fetch_all(pool)
+  .await?;
+
+  let entries = sqlx::query_as::<_, TimelineEntryRow>(
+    r#"
+      SELECT
+        ge.game_id, ge.player_id,
+        (ge.winnings_cents - ge.buy_in_cents) AS net_cents,
+        p.first_name, p.last_name, p.created_at
+      FROM game_entries ge
+      JOIN players p ON p.id = ge.player_id
+    "#,
+  )
+  .fetch_all(pool)
+  .await?;
+
+  let mut game_index: HashMap<Uuid, usize> = HashMap::new();
+  for (i, g) in games.iter().enumerate() {
+    game_index.insert(g.id, i);
+  }
+
+  let mut players: HashMap<Uuid, Player> = HashMap::new();
+  let mut nets: HashMap<Uuid, HashMap<usize, i64>> = HashMap::new();
+  for row in entries {
+    let Some(&idx) = game_index.get(&row.game_id) else {
+      continue;
+    };
+    players.entry(row.player_id).or_insert_with(|| Player {
+      id: row.player_id,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      created_at: row.created_at,
+    });
+    nets
+      .entry(row.player_id)
+      .or_default()
+      .insert(idx, row.net_cents as i64);
+  }
+
+  let mut series: Vec<PlayerSeries> = players
+    .into_iter()
+    .map(|(player_id, player)| {
+      let per_game = nets.remove(&player_id).unwrap_or_default();
+      let mut running = 0i64;
+      let points = (0..games.len())
+        .map(|i| {
+          if let Some(net) = per_game.get(&i) {
+            running += net;
+          }
+          running
+        })
+        .collect();
+      PlayerSeries { player, points }
+    })
+    .collect();
+
+  series.sort_by(|a, b| b.points.last().unwrap_or(&0).cmp(a.points.last().unwrap_or(&0)));
+
+  Ok(NetTimeline { games, series })
+}

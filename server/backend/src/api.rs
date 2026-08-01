@@ -33,6 +33,7 @@ pub fn router() -> Router<AppState> {
     )
     .route("/api/games/{id}/settle", post(games::settle))
     .route("/api/stats", get(stats::all))
+    .route("/api/stats/timeline", get(stats::timeline))
     .layer(CompressionLayer::new().br(true).gzip(true))
 }
 
@@ -194,5 +195,10 @@ mod stats {
   pub async fn all(State(state): State<AppState>) -> Result<Json<Vec<db::PlayerLeaderboard>>, Error> {
     let stats = db::get_leaderboard(&state.pool).await?;
     Ok(Json(stats))
+  }
+
+  pub async fn timeline(State(state): State<AppState>) -> Result<Json<db::NetTimeline>, Error> {
+    let timeline = db::get_net_timeline(&state.pool).await?;
+    Ok(Json(timeline))
   }
 }

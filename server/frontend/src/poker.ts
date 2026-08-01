@@ -111,6 +111,56 @@ async function loadStats() {
   }
 }
 
+function seriesColor(index: number) {
+  return `hsl(${Math.round((index * 137.508) % 360)} 70% 55%)`;
+}
+
+async function loadNetChart() {
+  const chartEl = document.getElementById('net-chart')!;
+  const legendEl = document.getElementById('net-legend')!;
+  try {
+    const data = await api('/stats/timeline');
+    const games = data.games || [];
+    const series = (data.series || []).filter((s: any) => s.points.length > 0);
+    if (games.length === 0 || series.length === 0) {
+      chartEl.innerHTML = '<div class="muted lb-empty">No games yet</div>';
+      legendEl.innerHTML = '';
+      return;
+    }
+
+    let min = 0, max = 0;
+    series.forEach((s: any) => s.points.forEach((v: number) => {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }));
+    if (min === max) max = min + 1;
+
+    const n = games.length;
+    const pad = 6;
+    const xOf = (i: number) => n > 1 ? (i / (n - 1)) * 100 : 50;
+    const yOf = (v: number) => 100 - pad - ((v - min) / (max - min)) * (100 - 2 * pad);
+    const zeroY = yOf(0).toFixed(2);
+
+    let svg = '<svg class="net-svg" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">';
+    svg += `<line x1="0" y1="${zeroY}" x2="100" y2="${zeroY}" class="net-zero" vector-effect="non-scaling-stroke"/>`;
+    series.forEach((s: any, idx: number) => {
+      const pts = s.points.map((v: number, i: number) => `${xOf(i).toFixed(2)},${yOf(v).toFixed(2)}`).join(' ');
+      svg += `<polyline points="${pts}" fill="none" stroke="${seriesColor(idx)}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+    });
+    svg += '</svg>';
+    chartEl.innerHTML = svg;
+
+    const legend = series.map((s: any, idx: number) => ({ s, idx, final: s.points[s.points.length - 1] }));
+    legend.sort((a, b) => b.final - a.final);
+    legendEl.innerHTML = legend.map(({ s, idx, final }) =>
+      `<span class="legend-item"><span class="legend-swatch" style="background:${seriesColor(idx)}"></span>${s.player.first_name} ${s.player.last_name}<span class="legend-net ${moneyClass(final)}">${formatSignedMoney(final)}</span></span>`
+    ).join('');
+  } catch {
+    chartEl.innerHTML = '<div class="muted lb-empty">Failed to load</div>';
+    legendEl.innerHTML = '';
+  }
+}
+
 function initStatsControls() {
   document.querySelectorAll('#lb-sort button').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -399,6 +449,7 @@ async function saveGame() {
     closeModal('game-modal');
     loadGames();
     loadStats();
+    loadNetChart();
   } catch {
     errEl.textContent = 'Failed to save game';
     errEl.style.display = 'block';
@@ -409,5 +460,6 @@ async function saveGame() {
 // init
 initStatsControls();
 loadStats();
+loadNetChart();
 loadGames();
 loadPlayers();
