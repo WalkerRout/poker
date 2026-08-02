@@ -155,7 +155,7 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 .record-holder { font-size: 0.75rem; color: var(--font-color-secondary); }
 
 .chart-card h2 { margin-bottom: 12px; }
-.net-chart { width: 100%; }
+.net-chart { width: 100%; min-height: 220px; }
 .net-svg { width: 100%; height: 220px; display: block; overflow: visible; }
 .net-zero { stroke: var(--font-color-muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.6; }
 .net-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; }
@@ -251,5 +251,6 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   .form-grid { grid-template-columns: 1fr; }
   .entry-row { grid-template-columns: 1fr 60px 60px 28px; }
   .stats-header { align-items: flex-start; }
+  .net-chart { min-height: 180px; }
   .net-svg { height: 180px; }
 }

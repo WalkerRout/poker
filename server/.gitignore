@@ -1,1 +1,8 @@
 /target
+
+/backend/static/css/fonts.css
+/backend/static/css/layout.css
+/backend/static/css/theme.css
+/backend/static/fonts/
+/backend/static/js/
+/backend/templates/base.html
