@@ -34,6 +34,7 @@ pub fn router() -> Router<AppState> {
     .route("/api/games/{id}/settle", post(games::settle))
     .route("/api/stats", get(stats::all))
     .route("/api/stats/timeline", get(stats::timeline))
+    .route("/api/stats/records", get(stats::records))
     .layer(CompressionLayer::new().br(true).gzip(true))
 }
 
@@ -89,8 +90,7 @@ mod players {
     Json(req): Json<CreateRequest>,
   ) -> Result<Response, Error> {
     if req.force != Some(true) {
-      let existing =
-        db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
+      let existing = db::find_players_by_name(&state.pool, &req.first_name, &req.last_name).await?;
       if !existing.is_empty() {
         return Err(Error::PlayerConflict(existing));
       }
@@ -192,7 +192,9 @@ mod games {
 mod stats {
   use super::*;
 
-  pub async fn all(State(state): State<AppState>) -> Result<Json<Vec<db::PlayerLeaderboard>>, Error> {
+  pub async fn all(
+    State(state): State<AppState>,
+  ) -> Result<Json<Vec<db::PlayerLeaderboard>>, Error> {
     let stats = db::get_leaderboard(&state.pool).await?;
     Ok(Json(stats))
   }
@@ -200,5 +202,10 @@ mod stats {
   pub async fn timeline(State(state): State<AppState>) -> Result<Json<db::NetTimeline>, Error> {
     let timeline = db::get_net_timeline(&state.pool).await?;
     Ok(Json(timeline))
+  }
+
+  pub async fn records(State(state): State<AppState>) -> Result<Json<Vec<db::Record>>, Error> {
+    let records = db::get_records(&state.pool).await?;
+    Ok(Json(records))
   }
 }

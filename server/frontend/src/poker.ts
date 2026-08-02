@@ -111,6 +111,50 @@ async function loadStats() {
   }
 }
 
+const RECORD_LABELS: Record<string, string> = {
+  biggest_win: 'Biggest win',
+  biggest_loss: 'Biggest loss',
+  biggest_pot: 'Biggest pot',
+  longest_win_streak: 'Longest win streak',
+  most_games: 'Most games',
+  highest_net: 'Highest net',
+};
+
+function renderRecord(r: any) {
+  const label = RECORD_LABELS[r.key] || r.key;
+  let value = '', cls = '';
+  if (r.key === 'longest_win_streak') value = `${r.count} wins`;
+  else if (r.key === 'most_games') value = `${r.count} games`;
+  else if (r.key === 'biggest_pot') value = formatMoney(r.amount_cents);
+  else { value = formatSignedMoney(r.amount_cents); cls = moneyClass(r.amount_cents); }
+
+  const parts: string[] = [];
+  if (r.player) parts.push(`${r.player.first_name} ${r.player.last_name}`);
+  if (r.date) parts.push(formatDate(r.date));
+  const holder = parts.join(' · ');
+
+  return `
+    <div class="record-card">
+      <div class="record-label">${label}</div>
+      <div class="record-value ${cls}">${value}</div>
+      ${holder ? `<div class="record-holder">${holder}</div>` : ''}
+    </div>`;
+}
+
+async function loadRecords() {
+  const el = document.getElementById('records')!;
+  try {
+    const records = await api('/stats/records');
+    if (!records || records.length === 0) {
+      el.innerHTML = '<div class="muted lb-empty">No records yet</div>';
+      return;
+    }
+    el.innerHTML = records.map(renderRecord).join('');
+  } catch {
+    el.innerHTML = '<div class="muted lb-empty">Failed to load</div>';
+  }
+}
+
 function seriesColor(index: number) {
   return `hsl(${Math.round((index * 137.508) % 360)} 70% 55%)`;
 }
@@ -450,6 +494,7 @@ async function saveGame() {
     loadGames();
     loadStats();
     loadNetChart();
+    loadRecords();
   } catch {
     errEl.textContent = 'Failed to save game';
     errEl.style.display = 'block';
@@ -459,6 +504,7 @@ async function saveGame() {
 
 // init
 initStatsControls();
+loadRecords();
 loadStats();
 loadNetChart();
 loadGames();

@@ -708,7 +708,256 @@ pub async fn get_net_timeline(pool: &PgPool) -> Result<NetTimeline, Error> {
     })
     .collect();
 
-  series.sort_by(|a, b| b.points.last().unwrap_or(&0).cmp(a.points.last().unwrap_or(&0)));
+  series.sort_by(|a, b| {
+    b.points
+      .last()
+      .unwrap_or(&0)
+      .cmp(a.points.last().unwrap_or(&0))
+  });
 
   Ok(NetTimeline { games, series })
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Record {
+  pub key: String,
+  pub player: Option<Player>,
+  pub amount_cents: Option<i64>,
+  pub count: Option<i64>,
+  pub date: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, FromRow)]
+struct PlayerAmountDateRow {
+  id: Uuid,
+  first_name: String,
+  last_name: String,
+  created_at: DateTime<Utc>,
+  amount_cents: i64,
+  date: DateTime<Utc>,
+}
+
+#[derive(Debug, FromRow)]
+struct PotRow {
+  amount_cents: i64,
+  date: DateTime<Utc>,
+}
+
+#[derive(Debug, FromRow)]
+struct PlayerCountRow {
+  id: Uuid,
+  first_name: String,
+  last_name: String,
+  created_at: DateTime<Utc>,
+  count: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct PlayerAmountRow {
+  id: Uuid,
+  first_name: String,
+  last_name: String,
+  created_at: DateTime<Utc>,
+  amount_cents: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct RecordStreakRow {
+  player_id: Uuid,
+  first_name: String,
+  last_name: String,
+  created_at: DateTime<Utc>,
+  net_cents: i32,
+}
+
+pub async fn get_records(pool: &PgPool) -> Result<Vec<Record>, Error> {
+  let mut records = Vec::new();
+
+  let biggest_win = sqlx::query_as::<_, PlayerAmountDateRow>(
+    r#"
+      SELECT p.id, p.first_name, p.last_name, p.created_at,
+             (ge.winnings_cents - ge.buy_in_cents)::bigint AS amount_cents,
+             g.started_at AS date
+      FROM game_entries ge
+      JOIN players p ON p.id = ge.player_id
+      JOIN games g ON g.id = ge.game_id
+      ORDER BY (ge.winnings_cents - ge.buy_in_cents) DESC, g.started_at ASC
+      LIMIT 1
+    "#,
+  )
+  .fetch_optional(pool)
+  .await?;
+  if let Some(r) = biggest_win {
+    records.push(Record {
+      key: "biggest_win".into(),
+      player: Some(Player {
+        id: r.id,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        created_at: r.created_at,
+      }),
+      amount_cents: Some(r.amount_cents),
+      count: None,
+      date: Some(r.date),
+    });
+  }
+
+  let biggest_loss = sqlx::query_as::<_, PlayerAmountDateRow>(
+    r#"
+      SELECT p.id, p.first_name, p.last_name, p.created_at,
+             (ge.winnings_cents - ge.buy_in_cents)::bigint AS amount_cents,
+             g.started_at AS date
+      FROM game_entries ge
+      JOIN players p ON p.id = ge.player_id
+      JOIN games g ON g.id = ge.game_id
+      ORDER BY (ge.winnings_cents - ge.buy_in_cents) ASC, g.started_at ASC
+      LIMIT 1
+    "#,
+  )
+  .fetch_optional(pool)
+  .await?;
+  if let Some(r) = biggest_loss {
+    records.push(Record {
+      key: "biggest_loss".into(),
+      player: Some(Player {
+        id: r.id,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        created_at: r.created_at,
+      }),
+      amount_cents: Some(r.amount_cents),
+      count: None,
+      date: Some(r.date),
+    });
+  }
+
+  let biggest_pot = sqlx::query_as::<_, PotRow>(
+    r#"
+      SELECT COALESCE(SUM(ge.buy_in_cents), 0)::bigint AS amount_cents, g.started_at AS date
+      FROM games g
+      JOIN game_entries ge ON ge.game_id = g.id
+      GROUP BY g.id, g.started_at
+      ORDER BY amount_cents DESC, g.started_at ASC
+      LIMIT 1
+    "#,
+  )
+  .fetch_optional(pool)
+  .await?;
+  if let Some(r) = biggest_pot {
+    records.push(Record {
+      key: "biggest_pot".into(),
+      player: None,
+      amount_cents: Some(r.amount_cents),
+      count: None,
+      date: Some(r.date),
+    });
+  }
+
+  let streak_rows = sqlx::query_as::<_, RecordStreakRow>(
+    r#"
+      SELECT ge.player_id, p.first_name, p.last_name, p.created_at,
+             (ge.winnings_cents - ge.buy_in_cents) AS net_cents
+      FROM game_entries ge
+      JOIN players p ON p.id = ge.player_id
+      JOIN games g ON g.id = ge.game_id
+      ORDER BY ge.player_id, g.started_at ASC, g.created_at ASC
+    "#,
+  )
+  .fetch_all(pool)
+  .await?;
+
+  let mut best_len: i64 = 0;
+  let mut best_player: Option<Player> = None;
+  let mut cur_player: Option<Uuid> = None;
+  let mut cur_len: i64 = 0;
+  for row in &streak_rows {
+    if cur_player != Some(row.player_id) {
+      cur_player = Some(row.player_id);
+      cur_len = 0;
+    }
+    if row.net_cents > 0 {
+      cur_len += 1;
+      if cur_len > best_len {
+        best_len = cur_len;
+        best_player = Some(Player {
+          id: row.player_id,
+          first_name: row.first_name.clone(),
+          last_name: row.last_name.clone(),
+          created_at: row.created_at,
+        });
+      }
+    } else {
+      cur_len = 0;
+    }
+  }
+  if best_len > 0 {
+    if let Some(player) = best_player {
+      records.push(Record {
+        key: "longest_win_streak".into(),
+        player: Some(player),
+        amount_cents: None,
+        count: Some(best_len),
+        date: None,
+      });
+    }
+  }
+
+  let most_games = sqlx::query_as::<_, PlayerCountRow>(
+    r#"
+      SELECT p.id, p.first_name, p.last_name, p.created_at, COUNT(ge.game_id) AS count
+      FROM players p
+      JOIN game_entries ge ON ge.player_id = p.id
+      GROUP BY p.id, p.first_name, p.last_name, p.created_at
+      ORDER BY count DESC, p.first_name ASC
+      LIMIT 1
+    "#,
+  )
+  .fetch_optional(pool)
+  .await?;
+  if let Some(r) = most_games {
+    if r.count > 0 {
+      records.push(Record {
+        key: "most_games".into(),
+        player: Some(Player {
+          id: r.id,
+          first_name: r.first_name,
+          last_name: r.last_name,
+          created_at: r.created_at,
+        }),
+        amount_cents: None,
+        count: Some(r.count),
+        date: None,
+      });
+    }
+  }
+
+  let highest_net = sqlx::query_as::<_, PlayerAmountRow>(
+    r#"
+      SELECT p.id, p.first_name, p.last_name, p.created_at,
+             COALESCE(SUM(ge.winnings_cents - ge.buy_in_cents), 0)::bigint AS amount_cents
+      FROM players p
+      JOIN game_entries ge ON ge.player_id = p.id
+      GROUP BY p.id, p.first_name, p.last_name, p.created_at
+      ORDER BY amount_cents DESC, p.first_name ASC
+      LIMIT 1
+    "#,
+  )
+  .fetch_optional(pool)
+  .await?;
+  if let Some(r) = highest_net {
+    records.push(Record {
+      key: "highest_net".into(),
+      player: Some(Player {
+        id: r.id,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        created_at: r.created_at,
+      }),
+      amount_cents: Some(r.amount_cents),
+      count: None,
+      date: None,
+    });
+  }
+
+  Ok(records)
 }

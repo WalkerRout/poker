@@ -10,6 +10,18 @@
   box-sizing: border-box;
 }
 
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+
 html, body {
   height: 100%;
   overflow: hidden;
@@ -39,12 +51,13 @@ main {
   align-items: flex-start;
   background-color: var(--content-bg);
   border: 1px solid var(--content-border, transparent);
+  padding: 2rem;
   border-radius: 8px;
   box-shadow: 4px 4px 10px var(--shadow-color);
   width: 75vw;
   height: 75vh;
-  padding: 0 2rem;
   overflow: auto;
+  overflow: overlay;
 }
 
 footer {
@@ -67,7 +80,7 @@ footer {
   .content {
     width: 95vw;
     height: calc(100vh - 120px);
-    padding: 0 1rem;
+    padding: 1rem;
     border-radius: 4px;
   }
 
@@ -81,6 +94,6 @@ footer {
 @media (max-width: 480px) {
   .content {
     width: 98vw;
-    padding: 0 0.75rem;
+    padding: 0.75rem;
   }
 }
