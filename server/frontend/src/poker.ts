@@ -34,9 +34,9 @@ function formatDate(d: string) {
 
 function showTab(name: string) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('[id$="-tab"]').forEach(t => (t as HTMLElement).style.display = 'none');
+  document.querySelectorAll('[id$="-tab"]').forEach(t => (t as HTMLElement).hidden = true);
   document.querySelector(`[onclick="showTab('${name}')"]`)!.classList.add('active');
-  document.getElementById(name + '-tab')!.style.display = 'block';
+  document.getElementById(name + '-tab')!.hidden = false;
 }
 (window as any).showTab = showTab;
 
